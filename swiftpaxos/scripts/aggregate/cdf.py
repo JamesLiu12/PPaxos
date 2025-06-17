@@ -3,7 +3,7 @@ import csv
 
 import sys
 sys.path.insert(0, "./scripts")
-from utils import aggregate_protocol
+from utils import aggregate_protocol, sorted_access
 
 
 #Please procduce files with transactions for each alias (sorted) before using this
@@ -13,8 +13,7 @@ from utils import aggregate_protocol
 # ROOT_PATH = "/mnt/share/exp"
 ROOT_PATH = "out"
 
-
-experiment_number = 1
+experiment_number = 2
 folder_path = f"{ROOT_PATH}/exp{experiment_number}"
 protocols = [x for x in os.listdir(folder_path) if os.path.isdir(f"{folder_path}/{x}")]
 
@@ -30,7 +29,9 @@ for protocol in protocols:
     for i in range(10):
         percentage = (i+1) * 10
 
-        latency, count = aggregate_protocol(folder_path, [-1, 0], lambda row, variables: [row["latency"] if (variables[1] + 1)/row["num_of_rows"] * 100 <= percentage else variables[0], variables[1] + 1])
+        def agg(row, variables):
+            return [row["latency"] if (variables[1] + 1)/row["num_of_rows"] * 100 <= percentage else variables[0], variables[1] + 1]
+        latency, count = sorted_access(folder_path, [-1, 0], agg)
         writer.writerow({"protocol": protocol, "latency": latency, "percentage": percentage})
 protocol_f.close()
 

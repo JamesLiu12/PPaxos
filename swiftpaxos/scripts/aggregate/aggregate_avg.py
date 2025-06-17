@@ -26,7 +26,7 @@ def compute_protocol_avgs(exp, protocol):
         avgs[alias_folder[i]] = {"avg": avg, "count": count}
     return avgs
 
-experiment_number = 1
+experiment_number = 3
 folder_path = f"{ROOT_PATH}/exp{experiment_number}"
 protocols = [x for x in os.listdir(folder_path) if os.path.isdir(f"{folder_path}/{x}")]
 
