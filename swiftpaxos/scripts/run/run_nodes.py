@@ -1,5 +1,9 @@
 import subprocess
+
+import sys
+sys.path.insert(0, "./scripts")
 from utils import read_json, read_conf
+
 from kill_all import kill_proc
 
 #Run master + replica

@@ -1,5 +1,5 @@
 <h1>Testing Scripts</h1>
-<p>The scripts are used to more conveniently try out the repository. There are 3 main parts: setting up, running, and aggregating.</p>
+<p>The scripts are used to more conveniently try out the repository. There are 3 main parts: setting up, running, and aggregating. They're put in a folder accordingly.</p>
 <p>Note: The configurations of the files running in this folder is independent from the main repo.</p>
 
 <h2>1. Setting Up</h2>
@@ -17,10 +17,14 @@
 </ol>
 
 <h2>3. Aggregation</h2>
-<p>Takes average latency for all clients for a given protocol under an expriment number. To specify, please modify the experiment number variable in each files (there's only one of them per file and their variable should be clear enough)</p>
-<ul>
-    <li>aggregate.py</li>
-</ul>
+<p>Please modify the experiment number variable and root directory in each files (there's only one of them per file and their variable should be clear enough) as appropriate</p>
+
+- convert_csv.py
+    - Converts log files of the alias and combine them as a csv file. Please run this one before running everything else
+- aggregate.py
+    - Takes average latency for all clients for a given protocol.
+- cdf.py
+    - Produce a cdf in csv format
 
 <h2>Usage</h2>
 <ol>

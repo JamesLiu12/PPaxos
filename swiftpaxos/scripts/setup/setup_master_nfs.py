@@ -1,10 +1,13 @@
 import subprocess
+
+import sys
+sys.path.insert(0, "./scripts")
 from utils import read_json
 
 #Set up nfs for host + clone repository
 #This is supposed to only be done once
 
-mstr = read_json("scripts/conf.json", ["master"])[0]
+mstr, = read_json("scripts/conf.json", ["master"])
 node_address = mstr["node_address"]
 user = mstr["user"]
 key_path = mstr["key_path"]

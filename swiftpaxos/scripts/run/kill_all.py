@@ -1,6 +1,8 @@
 import subprocess
-from utils import read_json
 import sys
+
+sys.path.insert(0, "./scripts")
+from utils import read_json
 
 def kill_proc(key_path, address):
     try:
