@@ -45,9 +45,11 @@ type PreAcceptReply struct {
 	Ballot        int32
 	VBallot       int32
 	Seq           int32
+	Command       []state.Command
 	Deps          []int32
 	CommittedDeps []int32
 	Status        int8
+	reach         []bool
 }
 
 type PreAcceptOK struct {
@@ -822,6 +824,7 @@ func (p *PreAcceptReplyCache) Put(t *PreAcceptReply) {
 func (t *PreAcceptReply) Marshal(wire io.Writer) {
 	var b [21]byte
 	var bs []byte
+	var tmp bool
 	bs = b[:21]
 	tmp32 := t.Replica
 	bs[0] = byte(tmp32)
@@ -851,11 +854,19 @@ func (t *PreAcceptReply) Marshal(wire io.Writer) {
 	bs[20] = byte(t.Status)
 	wire.Write(bs)
 	bs = b[:]
-	alen1 := int64(len(t.Deps))
+	alen1 := int64(len(t.Command))
 	if wlen := binary.PutVarint(bs, alen1); wlen >= 0 {
 		wire.Write(b[0:wlen])
 	}
 	for i := int64(0); i < alen1; i++ {
+		t.Command[i].Marshal(wire)
+	}
+	bs = b[:]
+	alen2 := int64(len(t.Deps))
+	if wlen := binary.PutVarint(bs, alen2); wlen >= 0 {
+		wire.Write(b[0:wlen])
+	}
+	for i := int64(0); i < alen2; i++ {
 		bs = b[:4]
 		tmp32 = t.Deps[i]
 		bs[0] = byte(tmp32)
@@ -865,17 +876,31 @@ func (t *PreAcceptReply) Marshal(wire io.Writer) {
 		wire.Write(bs)
 	}
 	bs = b[:]
-	alen2 := int64(len(t.CommittedDeps))
-	if wlen := binary.PutVarint(bs, alen2); wlen >= 0 {
+	alen3 := int64(len(t.CommittedDeps))
+	if wlen := binary.PutVarint(bs, alen3); wlen >= 0 {
 		wire.Write(b[0:wlen])
 	}
-	for i := int64(0); i < alen2; i++ {
+	for i := int64(0); i < alen3; i++ {
 		bs = b[:4]
 		tmp32 = t.CommittedDeps[i]
 		bs[0] = byte(tmp32)
 		bs[1] = byte(tmp32 >> 8)
 		bs[2] = byte(tmp32 >> 16)
 		bs[3] = byte(tmp32 >> 24)
+		wire.Write(bs)
+	}
+	alen4 := int64(len(t.reach))
+	if wlen := binary.PutVarint(bs, alen4); wlen >= 0 {
+		wire.Write(b[0:wlen])
+	}
+	for i := int64(0); i < alen4; i++ {
+		bs = b[:1]
+		tmp = t.reach[i]
+		if tmp {
+			bs[0] = 1
+		} else {
+			bs[0] = 0
+		}
 		wire.Write(bs)
 	}
 }
@@ -902,24 +927,44 @@ func (t *PreAcceptReply) Unmarshal(rr io.Reader) error {
 	if err != nil {
 		return err
 	}
-	t.Deps = make([]int32, alen1)
+	t.Command = make([]state.Command, alen1)
 	for i := int64(0); i < alen1; i++ {
+		t.Command[i].Unmarshal(wire)
+	}
+	alen2, err := binary.ReadVarint(wire)
+	if err != nil {
+		return err
+	}
+	t.Deps = make([]int32, alen2)
+	for i := int64(0); i < alen2; i++ {
 		bs = b[:4]
 		if _, err := io.ReadAtLeast(wire, bs, 4); err != nil {
 			return err
 		}
 		t.Deps[i] = int32((uint32(bs[0]) | (uint32(bs[1]) << 8) | (uint32(bs[2]) << 16) | (uint32(bs[3]) << 24)))
 	}
-	alen2, err := binary.ReadVarint(wire)
+	alen3, err := binary.ReadVarint(wire)
 	if err != nil {
 		return err
 	}
-	t.CommittedDeps = make([]int32, alen2)
-	for i := int64(0); i < alen2; i++ {
+	t.CommittedDeps = make([]int32, alen3)
+	for i := int64(0); i < alen3; i++ {
 		if _, err := io.ReadAtLeast(wire, bs, 4); err != nil {
 			return err
 		}
 		t.CommittedDeps[i] = int32((uint32(bs[0]) | (uint32(bs[1]) << 8) | (uint32(bs[2]) << 16) | (uint32(bs[3]) << 24)))
+	}
+	alen4, err := binary.ReadVarint(wire)
+	if err != nil {
+		return err
+	}
+	t.reach = make([]bool, alen4)
+	for i := int64(0); i < alen4; i++ {
+		bs = b[:1]
+		if _, err := io.ReadAtLeast(wire, bs, 1); err != nil {
+			return err
+		}
+		t.reach[i] = bs[0] != 0
 	}
 	return nil
 }

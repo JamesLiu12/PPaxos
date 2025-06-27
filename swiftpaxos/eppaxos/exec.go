@@ -24,20 +24,24 @@ type SCComponent struct {
 
 func (e *Exec) executeCommand(replica int32, instance int32) bool {
 	if e.r.InstanceSpace[replica][instance] == nil {
+		e.r.PrintDebug("Instance", instance, "on replica", replica, "is nil")
 		return false
 	}
 	inst := e.r.InstanceSpace[replica][instance]
 	if inst.Status == EXECUTED {
+		e.r.PrintDebug("Instance", instance, "on replica", replica, "is already executed")
 		return true
 	}
 	if inst.Status != COMMITTED {
+		e.r.PrintDebug("Instance", instance, "on replica", replica, "is not committed")
 		return false
 	}
 
 	if !e.findSCC(inst) {
+		e.r.PrintDebug("Instance", instance, "on replica", replica, "is not a SCC")
 		return false
 	}
-
+	e.r.PrintDebug("Instance", instance, "on replica", replica, "is a SCC")
 	return true
 }
 
@@ -48,14 +52,17 @@ func (e *Exec) findSCC(root *Instance) bool {
 	// find SCCs using Tarjan's algorithm
 	stack = stack[0:0]
 	ret := e.strongconnect(root, &index)
+	e.r.PrintDebug("findSCC", "root", root.id.instance, "ret", ret)
 	// reset all indexes in the stack
 	for j := 0; j < len(stack); j++ {
 		stack[j].Index = 0
 	}
+	e.r.PrintDebug("findSCC", "stack", stack)
 	return ret
 }
 
 func (e *Exec) strongconnect(v *Instance, index *int) bool {
+
 	v.Index = *index
 	v.Lowlink = *index
 	*index = *index + 1
@@ -70,6 +77,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 	stack[l] = v
 
 	if v.Cmds == nil {
+		e.r.PrintDebug("Command", v.id.instance, "on replica", v.id.replica, "has no commands")
 		return false
 	}
 
@@ -77,6 +85,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 		inst := v.Deps[q]
 		for i := e.r.ExecedUpTo[q] + 1; i <= inst; i++ {
 			if e.r.InstanceSpace[q][i] == nil || e.r.InstanceSpace[q][i].Cmds == nil {
+				e.r.PrintDebug("Command", v.id.instance, "on replica", v.id.replica, "has no commands2")
 				return false
 			}
 
@@ -95,6 +104,18 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			}
 
 			for e.r.InstanceSpace[q][i].Status != COMMITTED {
+				e.r.PrintDebug("Command", v.id.instance, "on replica", v.id.replica, "has not been committed", "replica", q, "instance", i, "status", e.r.InstanceSpace[q][i].Status)
+				/*e.r.handlePreAcceptReply(&PreAcceptReply{
+					Replica:       q,
+					Instance:      i,
+					Ballot:        e.r.InstanceSpace[q][i].bal,
+					VBallot:       e.r.InstanceSpace[q][i].vbal,
+					Seq:           e.r.InstanceSpace[q][i].Seq,
+					Deps:          e.r.InstanceSpace[q][i].Deps,
+					CommittedDeps: e.r.CommittedUpTo,
+					Status:        e.r.InstanceSpace[q][i].Status,
+					committed:     e.r.InstanceSpace[q][i].committed,
+				})*/
 				return false
 			}
 
@@ -102,6 +123,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 
 			if w.Index == 0 {
 				if !e.strongconnect(w, index) {
+					e.r.PrintDebug("Command 2", v.id.instance, "on replica", v.id.replica, "has not been committed", "replica", q, "instance", i, "status", e.r.InstanceSpace[q][i].Status)
 					return false
 				}
 				if w.Lowlink < v.Lowlink {
@@ -127,6 +149,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 				if w.Cmds[idx].Op == state.NONE {
 					// nothing to do
 				} else if shouldRespond {
+					//e.r.Printf("Replying to client for command %d on replica %d", w.id.instance, w.id.replica)
 					val := w.Cmds[idx].Execute(e.r.State)
 					e.r.ReplyProposeTS(
 						&defs.ProposeReplyTS{
@@ -144,7 +167,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 		}
 		stack = stack[0:l]
 	}
-
+	e.r.PrintDebug("Command 3", v.id.instance, "on replica", v.id.replica, "is a SCC")
 	return true
 }
 

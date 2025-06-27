@@ -13,6 +13,7 @@ import (
 	"github.com/imdea-software/swiftpaxos/curp"
 	"github.com/imdea-software/swiftpaxos/dlog"
 	"github.com/imdea-software/swiftpaxos/epaxos"
+	"github.com/imdea-software/swiftpaxos/eppaxos"
 	"github.com/imdea-software/swiftpaxos/fastpaxos"
 	"github.com/imdea-software/swiftpaxos/n2paxos"
 	"github.com/imdea-software/swiftpaxos/paxos"
@@ -31,11 +32,9 @@ func runReplica(c *config.Config, logger *dlog.Logger) {
 	log.Printf("Tolerating %d max. failures", f)
 
 	switch strings.ToLower(c.Protocol) {
-	case "ppaxos":
+	case "eppaxos":
 		log.Println("Starting PPaxos replica...")
-		swift.MaxDescRoutines = 100
-		rep := swift.New(c.Alias, replicaId, nodeList, !c.Noop,
-			c.Optread, true, false, 1, f, c, logger, nil)
+		rep := eppaxos.New(c.Alias, replicaId, nodeList, !c.Noop, false, false, 0, false, f, c, logger)
 		rpc.Register(rep)
 	case "swiftpaxos":
 		log.Println("Starting SwiftPaxos replica...")
