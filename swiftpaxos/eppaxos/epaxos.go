@@ -760,7 +760,7 @@ func (r *Replica) updatePriority(cmds []state.Command, seq int32, deps []int32, 
 								}
 								r.PrintDebug("updatePriority3", "j", j, "r.InstanceSpace[q][j].Deps[replica]", r.InstanceSpace[q][j].Deps[replica], "instance", instance)
 								//r.InstanceSpace[q][j].Deps[replica] = instance
-							} else if int32(q) < replica { //优先级更低
+							} else if int32(q) < replica && int32(q) == r.Id { //优先级更低
 								r.PrintDebug("conflictmap", conflictmap)
 								r.PrintDebug("q", q, "j", j, "r.InstanceSpace[q][j].Deps", r.InstanceSpace[q][j].Deps)
 								priority := true
@@ -804,165 +804,6 @@ func (r *Replica) updatePriority(cmds []state.Command, seq int32, deps []int32, 
 	return seq, deps, changed
 }
 
-/*
-func (r *Replica) updatePriority(cmds []state.Command, seq int32, deps []int32, replica int32, instance int32) (int32, []int32, bool) {
-	r.PrintDebug("updatePriority", "seq", seq, "deps", deps, "replica", replica, "instance", instance)
-	changed := false
-	for i := 0; i < len(cmds); i++ {
-		conflictmap := make([][]int32, r.N)
-		for q := r.N - 1; q >= 0; q-- {
-			if r.Id != replica && int32(q) == replica {
-				continue
-			}
-			if dpair, present := (r.conflicts[q])[cmds[i].K]; present {
-
-				d := dpair.lastWrite
-				if cmds[i].Op != state.GET {
-					d = dpair.last
-				}
-				r.PrintDebug("updatePriority q", q, "seq", seq, "cmds", i, "key", cmds[i].K, "dpair.last", dpair.last, "dpair.lastWrite", dpair.lastWrite, "d", d, "deps[q]", deps[q])
-				if d > deps[q] {
-					for j := deps[q] + 1; j <= d; j++ {
-						if r.InstanceSpace[q][j] == nil {
-							continue
-						}
-						r.PrintDebug("updatePriority2", "j", j, "r.InstanceSpace[q][j].Deps[replica]", r.InstanceSpace[q][j].Deps[replica], "instance", instance)
-						if r.InstanceSpace[q][j].Deps[replica] < instance {
-							if int32(q) > replica { //优先级更高
-								for k := 0; k < len(r.InstanceSpace[q][j].Cmds); k++ {
-									if r.InstanceSpace[q][j].Cmds[k].K == cmds[i].K {
-										if r.InstanceSpace[q][j].Cmds[k].Op != state.GET || cmds[i].Op != state.GET {
-											conflictmap[q] = append(conflictmap[q], j)
-											break
-										}
-									}
-								}
-								r.PrintDebug("updatePriority3", "j", j, "r.InstanceSpace[q][j].Deps[replica]", r.InstanceSpace[q][j].Deps[replica], "instance", instance)
-								r.InstanceSpace[q][j].Deps[replica] = instance
-							} else if int32(q) < replica { //优先级更低
-								priority := true
-								for k := replica + 1; k < int32(r.N); k++ {
-									for _, l := range conflictmap[k] {
-										if r.InstanceSpace[q][j].Deps[k] == l {
-											priority = false
-											break
-										}
-									}
-								}
-								if priority {
-									r.PrintDebug("updatePriority4", "j", j, "r.InstanceSpace[q][j].Deps[replica]", r.InstanceSpace[q][j].Deps[replica], "instance", instance, "d", d, "deps[q]", deps[q])
-									deps[q] = j
-								}
-							}
-						}
-					}
-					changed = true
-				}
-			}
-		}
-	}
-	for i := 0; i < len(cmds); i++ {
-		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
-			if seq <= s {
-				changed = true
-				seq = s + 1
-			}
-		}
-	}
-
-	return seq, deps, changed
-}*/
-
-/*
-func (r *Replica) updatePriority(cmds []state.Command, seq int32, deps []int32, replica int32, instance int32) (int32, []int32, bool) {
-	r.PrintDebug("updatePriority", "seq", seq, "deps", deps, "replica", replica, "instance", instance)
-	changed := false
-	for q := 0; q < r.N; q++ {
-		if r.Id != replica && int32(q) == replica {
-			continue
-		}
-		for i := 0; i < len(cmds); i++ {
-			if dpair, present := (r.conflicts[q])[cmds[i].K]; present {
-				r.PrintDebug("updatePriority q", q, "seq", seq, "cmds", i, "key", cmds[i].K, "dpair.last", dpair.last, "dpair.lastWrite", dpair.lastWrite)
-				d := dpair.lastWrite
-				if cmds[i].Op != state.GET {
-					d = dpair.last
-				}
-
-				if d > deps[q] {
-					if int32(q) > replica { //优先级更高
-						for j := deps[q] + 1; j <= d; j++ {
-							if r.InstanceSpace[q][j] == nil {
-								continue
-							}
-							if r.InstanceSpace[q][j].Deps[replica] < instance {
-								if cmds[i].Op != state.GET {
-									r.PrintDebug("updatePriority write q", q, "j", j, "seq", seq, "cmds", i, "key", cmds[i].K, "d", d, "deps[q]", deps[q])
-									r.InstanceSpace[q][j].Deps[replica] = instance
-								} else {
-									for k := 0; k < len(r.InstanceSpace[q][j].Cmds); k++ {
-										if r.InstanceSpace[q][j].Cmds[k].K == cmds[i].K && r.InstanceSpace[q][j].Cmds[k].Op != state.GET {
-											r.PrintDebug("updatePriority read q", q, "seq", seq, "cmds", i, "key", cmds[i].K, "d", d, "deps[q]", deps[q])
-											r.InstanceSpace[q][j].Deps[replica] = instance
-											break
-										}
-									}
-								}
-							}
-						} //调不好不调了，还要调不相关的 instance 的 seq
-						changed = true
-					} else if int32(q) < replica { //优先级更低
-						r.PrintDebug("updatePriority higher q", q, "seq", seq, "cmds", i, "key", cmds[i].K, "d", d, "deps[q]", deps[q])
-						for j := deps[q] + 1; j <= d; j++ {
-							if r.InstanceSpace[q][j] == nil {
-								continue
-							}
-							/*priority := true
-							for k := replica + 1; k < int32(r.N); k++ {
-								if r.InstanceSpace[q][j].Deps[k] > deps[k] {
-									for l := deps[k] + 1; l < r.InstanceSpace[q][j].Deps[k]; l++ {
-										for m := 0; m < len(r.InstanceSpace[k][l].Cmds); m++ {
-											if r.InstanceSpace[k][l].Cmds[m].K == cmds[i].K && r.InstanceSpace[k][l].Cmds[m].Op != state.GET {
-												r.PrintDebug("updatePriority priority q", q, "seq", seq, "cmds", i, "key", cmds[i].K, "d", d, "deps[q]", deps[q], "instance", instance, "r.InstanceSpace[q][j].Deps[replica]", r.InstanceSpace[q][j].Deps[replica])
-												priority = false
-												break
-											}
-										}
-									}
-								}
-							}*/ /*
-							if r.InstanceSpace[q][j].Deps[replica] < instance {
-								r.PrintDebug("updatePriority lower q", q, "j", j, "seq", seq, "cmds", i, "key", cmds[i].K, "d", d, "deps[q]", deps[q], "instance", instance, "r.InstanceSpace[q][j].Deps[replica]", r.InstanceSpace[q][j].Deps[replica])
-
-								if cmds[i].Op != state.GET {
-									deps[q] = d
-								} else {
-									for k := 0; k < len(r.InstanceSpace[q][j].Cmds); k++ {
-										if r.InstanceSpace[q][j].Cmds[k].K == cmds[i].K && r.InstanceSpace[q][j].Cmds[k].Op != state.GET {
-											deps[q] = d
-											break
-										}
-									}
-								}
-							}
-						}
-					} // 如果有相交，就必然会和低的有重合
-				} //这里要补全 d < deps[q]，有必要吗？好像没有，可以悬置
-			}
-		}
-	}
-	for i := 0; i < len(cmds); i++ {
-		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
-			if seq <= s {
-				changed = true
-				seq = s + 1
-			}
-		}
-	}
-
-	return seq, deps, changed
-}*/
-
 func (r *Replica) mergeAttributes(seq1 int32, deps1 []int32, seq2 int32, deps2 []int32) (int32, []int32, bool) {
 	equal := true
 	if seq1 != seq2 {
@@ -984,38 +825,6 @@ func (r *Replica) mergeAttributes(seq1 int32, deps1 []int32, seq2 int32, deps2 [
 	}
 	return seq1, deps1, equal
 }
-
-/*func (r *Replica) mergeSeqqueue(localseqqueue []Seqqueue, seqqueue []Seqqueue) []Seqqueue {
-
-	for _, seqItem := range seqqueue {
-		idFromSeq := seqItem.replica
-		found := false
-
-		for i, lbItem := range localseqqueue {
-
-			if lbItem.replica == idFromSeq {
-
-				for k := 0; k < r.N; k++ {
-					if seqItem.commit[k] == 1 {
-						localseqqueue[i].commit[k] = 1
-					}
-				}
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			newItem := Seqqueue{replica: idFromSeq, instance: seqItem.instance, commit: make([]int32, r.N)}
-			for k := 0; k < r.N; k++ {
-				newItem.commit[k] = seqItem.commit[k]
-			}
-			newItem.commit[r.Id-1] = 1
-			localseqqueue = append(localseqqueue, newItem)
-		}
-	}
-	return localseqqueue
-}*/
 
 func equal(deps1 []int32, deps2 []int32) bool {
 	for i := 0; i < len(deps1); i++ {
@@ -1328,30 +1137,7 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 			if inst.lb.committedDeps[q] < r.CommittedUpTo[q] {
 				inst.lb.committedDeps[q] = r.CommittedUpTo[q]
 			} // 这里有一个可以优化的地方，如果pareply.CommittedDeps[q] > r.CommittedUpTo[q]，说明在其他 replica 上已经 commit 了，这里可以也 commit，但这里的 dep 可能还没更新，需要其他人携带 dep 信息
-			/*
-				if inst.lb.committedDeps[q] < inst.Deps[q] {
-					for i := inst.lb.committedDeps[q] + 1; i <= inst.Deps[q]; i++ {
-						r.PrintDebug("handlePreAcceptReply in handlePreAcceptReply", q, i)
-						if r.InstanceSpace[q][i] == nil {
-							r.PrintDebug("r.InstanceSpace[q][i] is nil", q, i)
-							break
-						}
-						r.handlePreAcceptReply(&PreAcceptReply{
-							Replica:       int32(q),
-							Instance:      i,
-							Ballot:        r.InstanceSpace[q][i].bal,
-							VBallot:       r.InstanceSpace[q][i].vbal,
-							Seq:           r.InstanceSpace[q][i].Seq,
-							Deps:          r.InstanceSpace[q][i].Deps,
-							CommittedDeps: r.CommittedUpTo,
-							Status:        r.InstanceSpace[q][i].Status,
-							reach:     r.InstanceSpace[q][i].reach,
-						})
-					}
-				}
-				if inst.lb.committedDeps[q] < r.CommittedUpTo[q] {
-					inst.lb.committedDeps[q] = r.CommittedUpTo[q]
-				}*/
+
 			if r.CommittedUpTo[q] < lb.deps[q] {
 				allCommitted = false
 			}
@@ -1364,30 +1150,7 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 		for q := 0; q < r.N; q++ {
 			if committedDeps[q] < r.CommittedUpTo[q] {
 				committedDeps[q] = r.CommittedUpTo[q]
-			} /*
-				if committedDeps[q] < inst.Deps[q] {
-					for i := committedDeps[q] + 1; i <= inst.Deps[q]; i++ {
-						r.PrintDebug("handlePreAcceptReply in handlePreAcceptReply", q, i)
-						if r.InstanceSpace[q][i] == nil {
-							r.PrintDebug("r.InstanceSpace[q][i] is nil", q, i)
-							break
-						}
-						r.handlePreAcceptReply(&PreAcceptReply{
-							Replica:       int32(q),
-							Instance:      i,
-							Ballot:        r.InstanceSpace[q][i].bal,
-							VBallot:       r.InstanceSpace[q][i].vbal,
-							Seq:           r.InstanceSpace[q][i].Seq,
-							Deps:          r.InstanceSpace[q][i].Deps,
-							CommittedDeps: r.CommittedUpTo,
-							Status:        r.InstanceSpace[q][i].Status,
-							reach:     r.InstanceSpace[q][i].reach,
-						})
-					}
-				}
-				if committedDeps[q] < r.CommittedUpTo[q] {
-					committedDeps[q] = r.CommittedUpTo[q]
-				}*/
+			}
 			if r.CommittedUpTo[q] < inst.Deps[q] {
 				allCommitted = false
 			}
