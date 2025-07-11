@@ -50,6 +50,7 @@ type PreAcceptReply struct {
 	CommittedDeps []int32
 	Status        int8
 	reach         []bool
+	CommittedUpTo []int32
 }
 
 type PreAcceptOK struct {
@@ -889,6 +890,7 @@ func (t *PreAcceptReply) Marshal(wire io.Writer) {
 		bs[3] = byte(tmp32 >> 24)
 		wire.Write(bs)
 	}
+	bs = b[:]
 	alen4 := int64(len(t.reach))
 	if wlen := binary.PutVarint(bs, alen4); wlen >= 0 {
 		wire.Write(b[0:wlen])
@@ -901,6 +903,20 @@ func (t *PreAcceptReply) Marshal(wire io.Writer) {
 		} else {
 			bs[0] = 0
 		}
+		wire.Write(bs)
+	}
+	bs = b[:]
+	alen5 := int64(len(t.CommittedUpTo))
+	if wlen := binary.PutVarint(bs, alen5); wlen >= 0 {
+		wire.Write(b[0:wlen])
+	}
+	for i := int64(0); i < alen5; i++ {
+		bs = b[:4]
+		tmp32 = t.CommittedUpTo[i]
+		bs[0] = byte(tmp32)
+		bs[1] = byte(tmp32 >> 8)
+		bs[2] = byte(tmp32 >> 16)
+		bs[3] = byte(tmp32 >> 24)
 		wire.Write(bs)
 	}
 }
@@ -965,6 +981,18 @@ func (t *PreAcceptReply) Unmarshal(rr io.Reader) error {
 			return err
 		}
 		t.reach[i] = bs[0] != 0
+	}
+	alen5, err := binary.ReadVarint(wire)
+	if err != nil {
+		return err
+	}
+	t.CommittedUpTo = make([]int32, alen5)
+	for i := int64(0); i < alen5; i++ {
+		bs = b[:4]
+		if _, err := io.ReadAtLeast(wire, bs, 4); err != nil {
+			return err
+		}
+		t.CommittedUpTo[i] = int32((uint32(bs[0]) | (uint32(bs[1]) << 8) | (uint32(bs[2]) << 16) | (uint32(bs[3]) << 24)))
 	}
 	return nil
 }
