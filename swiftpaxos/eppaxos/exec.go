@@ -41,7 +41,7 @@ func (e *Exec) executeCommand(replica int32, instance int32) bool {
 		e.r.PrintDebug("Instance", instance, "on replica", replica, "is not a SCC")
 		return false
 	}
-	e.r.PrintDebug("Instance", instance, "on replica", replica, "is a SCC")
+	//e.r.PrintDebug("Instance", instance, "on replica", replica, "is a SCC")
 	return true
 }
 

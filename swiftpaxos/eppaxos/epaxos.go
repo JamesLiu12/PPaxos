@@ -76,6 +76,7 @@ type Replica struct {
 	ExecedUpTo       []int32
 	exec             *Exec
 	conflicts        []map[state.Key]*InstPair
+	conflictMap      []map[state.Key][]int32
 	keyHistory       map[state.Key][]InstanceRef
 	maxSeqPerKey     map[state.Key]int32
 	maxSeq           int32
@@ -115,6 +116,10 @@ type Instance struct {
 	proposeTime    int64
 	id             *instanceId
 	reach          []bool
+	priorityOKs    bool
+	preAcceptOKs   int
+	allCommitted   bool
+	time           time.Time
 	//replicaInstance int32
 }
 
@@ -166,6 +171,7 @@ func New(alias string, id int, peerAddrList []string, exec, beacon, durable bool
 		make([]int32, len(peerAddrList)),
 		nil,
 		make([]map[state.Key]*InstPair, len(peerAddrList)),
+		make([]map[state.Key][]int32, len(peerAddrList)),
 		make(map[state.Key][]InstanceRef),
 		make(map[state.Key]int32),
 		0,
@@ -188,6 +194,7 @@ func New(alias string, id int, peerAddrList []string, exec, beacon, durable bool
 		r.ExecedUpTo[i] = -1
 		r.CommittedUpTo[i] = -1
 		r.conflicts[i] = make(map[state.Key]*InstPair, HT_INIT_SIZE)
+		r.conflictMap[i] = make(map[state.Key][]int32, HT_INIT_SIZE)
 	}
 
 	r.exec = &Exec{r}
@@ -255,12 +262,14 @@ var fastClockChan chan bool
 var slowClockChan chan bool
 
 func (r *Replica) fastClock() {
+	r.Printf("fastClock")
 	for !r.Shutdown {
 		time.Sleep(time.Duration(r.batchWait) * time.Millisecond)
 		fastClockChan <- true
 	}
 }
 func (r *Replica) slowClock() {
+	r.Printf("slowClock")
 	for !r.Shutdown {
 		time.Sleep(150 * time.Millisecond)
 		slowClockChan <- true
@@ -300,17 +309,17 @@ func (r *Replica) run() {
 		go r.executeCommands()
 	}
 
-	slowClockChan = make(chan bool, 1)
-	fastClockChan = make(chan bool, 1)
-	go r.slowClock()
+	//slowClockChan = make(chan bool, 1)
+	//fastClockChan = make(chan bool, 1)
+	//go r.slowClock()
 
-	if r.BatchingEnabled() {
-		go r.fastClock()
-	}
+	//if r.BatchingEnabled() {
+	//	go r.fastClock()
+	//}
 
-	if r.Beacon {
-		go r.stopAdapting()
-	}
+	//if r.Beacon {
+	//	go r.stopAdapting()
+	//}
 
 	onOffProposeChan := r.ProposeChan
 
@@ -350,7 +359,7 @@ func (r *Replica) run() {
 			r.handlePrepareReply(prepareReply)
 
 		case preAcceptReplyS := <-r.preAcceptReplyChan:
-			//r.PrintDebug("received time", time.Now())
+			r.PrintDebug("received time", time.Now(), "time since recv", time.Since(preAcceptReplyS.(*PreAcceptReply).RecvTs))
 			preAcceptReply := preAcceptReplyS.(*PreAcceptReply)
 			r.handlePreAcceptReply(preAcceptReply)
 
@@ -405,7 +414,7 @@ func (r *Replica) executeCommands() {
 					if inst == r.ExecedUpTo[q]+1 {
 						r.ExecedUpTo[q] = inst
 					}
-					deps := r.InstanceSpace[q][inst].Deps
+					/*deps := r.InstanceSpace[q][inst].Deps
 					for p := 0; p < r.N; p++ {
 						for j := deps[p] + 1; j <= r.crtInstance[p]; j++ {
 							if r.InstanceSpace[p][j] == nil || r.InstanceSpace[p][j].Deps == nil || r.InstanceSpace[p][j].Status >= COMMITTED {
@@ -417,17 +426,13 @@ func (r *Replica) executeCommands() {
 								r.handlePreAcceptReply(&PreAcceptReply{
 									Replica:       int32(p),
 									Instance:      j,
-									Ballot:        r.InstanceSpace[p][j].bal,
-									VBallot:       r.InstanceSpace[p][j].vbal,
-									Seq:           r.InstanceSpace[p][j].Seq,
 									Deps:          r.InstanceSpace[p][j].Deps,
 									CommittedDeps: r.CommittedUpTo,
-									Status:        r.InstanceSpace[p][j].Status,
 									reach:         r.InstanceSpace[p][j].reach,
 								})
 							}
 						}
-					}
+					}*/
 					continue
 				}
 				if r.InstanceSpace[q][inst] == nil || r.InstanceSpace[q][inst].Status < COMMITTED || r.InstanceSpace[q][inst].Cmds == nil {
@@ -450,37 +455,34 @@ func (r *Replica) executeCommands() {
 					executed = true
 					if inst == r.ExecedUpTo[q]+1 {
 						r.ExecedUpTo[q] = inst
-					}
-					deps := r.InstanceSpace[q][inst].Deps
-					for p := 0; p < r.N; p++ {
-						for j := deps[p] + 1; j <= r.crtInstance[p]; j++ {
-							if r.InstanceSpace[p][j] == nil || r.InstanceSpace[p][j].Deps == nil || r.InstanceSpace[p][j].Status >= COMMITTED {
-								continue
+					} /*
+						deps := r.InstanceSpace[q][inst].Deps
+						for p := 0; p < r.N; p++ {
+							for j := deps[p] + 1; j <= r.crtInstance[p]; j++ {
+								if r.InstanceSpace[p][j] == nil || r.InstanceSpace[p][j].Deps == nil || r.InstanceSpace[p][j].Status >= COMMITTED {
+									continue
+								}
+								//r.PrintDebug("executeCommands2", "replica", p, "instance", j, "r.InstanceSpace[p][j].Deps[q]", r.InstanceSpace[p][j].Deps[q])
+								if r.InstanceSpace[p][j].Deps[q] == inst {
+									r.PrintDebug("handlePreAcceptReply", "replica", p, "instance", j, "deps", deps[p], "crtInstance", r.crtInstance[p])
+									r.handlePreAcceptReply(&PreAcceptReply{
+										Replica:       int32(p),
+										Instance:      j,
+										Deps:          r.InstanceSpace[p][j].Deps,
+										CommittedDeps: r.CommittedUpTo,
+										reach:         r.InstanceSpace[p][j].reach,
+									})
+								}
 							}
-							//r.PrintDebug("executeCommands2", "replica", p, "instance", j, "r.InstanceSpace[p][j].Deps[q]", r.InstanceSpace[p][j].Deps[q])
-							if r.InstanceSpace[p][j].Deps[q] == inst {
-								r.PrintDebug("handlePreAcceptReply", "replica", p, "instance", j, "deps", deps[p], "crtInstance", r.crtInstance[p])
-								r.handlePreAcceptReply(&PreAcceptReply{
-									Replica:       int32(p),
-									Instance:      j,
-									Ballot:        r.InstanceSpace[p][j].bal,
-									VBallot:       r.InstanceSpace[p][j].vbal,
-									Seq:           r.InstanceSpace[p][j].Seq,
-									Deps:          r.InstanceSpace[p][j].Deps,
-									CommittedDeps: r.CommittedUpTo,
-									Status:        r.InstanceSpace[p][j].Status,
-									reach:         r.InstanceSpace[p][j].reach,
-								})
-							}
-						}
-					}
+						}*/
 					//r.PrintDebug("end of executeCommands")
 				}
 			}
 		}
 		if !executed {
-			r.M.Lock()
-			r.M.Unlock() // FIXME for cache coherence
+			//r.Printf("sleep")
+			//r.M.Lock()
+			//r.M.Unlock() // FIXME for cache coherence
 			time.Sleep(SLEEP_TIME_NS)
 		}
 	}
@@ -660,15 +662,14 @@ func (r *Replica) updateCommitted(replica int32) {
 		(r.InstanceSpace[replica][r.CommittedUpTo[replica]+1].Status == COMMITTED ||
 			r.InstanceSpace[replica][r.CommittedUpTo[replica]+1].Status == EXECUTED) {
 		r.CommittedUpTo[replica] = r.CommittedUpTo[replica] + 1
-		r.PrintDebug("r.CommittedUpTo[replica]", r.CommittedUpTo[replica])
 	}
 }
 
-func (r *Replica) updateConflicts(cmds []state.Command, replica int32, instance int32, seq int32) {
+func (r *Replica) updateConflicts(cmds []state.Command, replica int32, instance int32) {
 	//r.PrintDebug("updateConflicts", "replica", replica, "instance", instance, "seq", seq)
 	for i := 0; i < len(cmds); i++ {
 		if dpair, present := r.conflicts[replica][cmds[i].K]; present {
-			r.PrintDebug("replica", replica, "instance", instance, "seq", seq, "cmds", i, "key", cmds[i].K, "dpair.last", dpair.last, "dpair.lastWrite", dpair.lastWrite)
+			r.PrintDebug("replica", replica, "instance", instance, "cmds", i, "key", cmds[i].K, "dpair.last", dpair.last, "dpair.lastWrite", dpair.lastWrite)
 			if dpair.last < instance {
 				r.conflicts[replica][cmds[i].K].last = instance
 			}
@@ -676,7 +677,7 @@ func (r *Replica) updateConflicts(cmds []state.Command, replica int32, instance 
 				r.conflicts[replica][cmds[i].K].lastWrite = instance
 			}
 		} else {
-			r.PrintDebug("replica", replica, "instance", instance, "seq", seq, "cmds", i, "key", cmds[i].K)
+			r.PrintDebug("replica", replica, "instance", instance, "cmds", i, "key", cmds[i].K)
 			r.conflicts[replica][cmds[i].K] = &InstPair{
 				last:      instance,
 				lastWrite: -1,
@@ -686,10 +687,12 @@ func (r *Replica) updateConflicts(cmds []state.Command, replica int32, instance 
 			}
 		}
 
+		r.conflictMap[replica][cmds[i].K] = append(r.conflictMap[replica][cmds[i].K], instance)
+
 	}
 }
 
-func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps []int32, replica int32) (int32, []int32, bool) {
+func (r *Replica) updateAttributes(cmds []state.Command, deps []int32, replica int32) ([]int32, bool) {
 	changed := false
 	for q := 0; q < r.N; q++ {
 		if r.Id != replica && int32(q) == replica {
@@ -697,43 +700,31 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps []int32
 		}
 		for i := 0; i < len(cmds); i++ {
 			if dpair, present := (r.conflicts[q])[cmds[i].K]; present {
-				r.PrintDebug("updateAttributes q", q, "replica", replica, "seq", seq, "cmds", i, "key", cmds[i].K, "dpair.last", dpair.last, "dpair.lastWrite", dpair.lastWrite)
+				r.PrintDebug("updateAttributes q", q, "replica", replica, "cmds", i, "key", cmds[i].K, "dpair.last", dpair.last, "dpair.lastWrite", dpair.lastWrite)
 				d := dpair.lastWrite
 				if cmds[i].Op != state.GET {
 					d = dpair.last
 				}
 
 				if d > deps[q] {
-					r.PrintDebug("updateAttributes q", q, "replica", replica, "seq", seq, "cmds", i, "key", cmds[i].K, "d", d, "deps[q]", deps[q])
+					r.PrintDebug("updateAttributes q", q, "replica", replica, "cmds", i, "key", cmds[i].K, "d", d, "deps[q]", deps[q])
 					deps[q] = d
 					for j := 0; j < len(r.InstanceSpace[q][d].Deps); j++ {
 						if r.InstanceSpace[q][d].Deps[j] > deps[j] {
 							deps[j] = r.InstanceSpace[q][d].Deps[j]
 						}
 					}
-					if seq <= r.InstanceSpace[q][d].Seq {
-						seq = r.InstanceSpace[q][d].Seq + 1
-					}
 					changed = true
 				}
 			}
 		}
 	}
-	for i := 0; i < len(cmds); i++ {
-		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
-			if seq <= s {
-				changed = true
-				seq = s + 1
-			}
-		}
-	}
 
-	return seq, deps, changed
+	return deps, changed
 }
 
-func (r *Replica) updatePriority(cmds []state.Command, seq int32, deps []int32, replica int32, instance int32) (int32, []int32) {
-	//还是有点问题，应该先遍历 cmd 把 conflictmap 构建出来
-	r.PrintDebug("updatePriority", "seq", seq, "deps", deps, "replica", replica, "instance", instance)
+func (r *Replica) updatePriority(cmds []state.Command, deps []int32, replica int32, instance int32) []int32 {
+	r.PrintDebug("updatePriority", "deps", deps, "replica", replica, "instance", instance)
 	conflictmap := make([][]int32, r.N)
 	for i := 0; i < len(cmds); i++ {
 		for q := r.N - 1; q >= 0; q-- {
@@ -746,15 +737,15 @@ func (r *Replica) updatePriority(cmds []state.Command, seq int32, deps []int32, 
 				if cmds[i].Op != state.GET {
 					d = dpair.last
 				}
-				r.PrintDebug("updatePriority q", q, "seq", seq, "cmds", i, "key", cmds[i].K, "dpair.last", dpair.last, "dpair.lastWrite", dpair.lastWrite, "d", d, "deps[q]", deps[q])
+				r.PrintDebug("updatePriority q", q, "cmds", i, "key", cmds[i].K, "dpair.last", dpair.last, "dpair.lastWrite", dpair.lastWrite, "d", d, "deps[q]", deps[q])
 				if d > deps[q] {
-					for j := deps[q] + 1; j <= d; j++ {
-						if r.InstanceSpace[q][j] == nil {
-							continue
-						}
-						r.PrintDebug("updatePriority2", "j", j, "r.InstanceSpace[q][j].Deps[replica]", r.InstanceSpace[q][j].Deps[replica], "instance", instance)
+					if int32(q) > replica { //优先级更高
+						for j := deps[q] + 1; j <= d; j++ {
+							if r.InstanceSpace[q][j] == nil {
+								continue
+							}
+							r.PrintDebug("updatePriority2", "j", j, "r.InstanceSpace[q][j].Deps[replica]", r.InstanceSpace[q][j].Deps[replica], "instance", instance)
 
-						if int32(q) > replica { //优先级更高
 							for k := 0; k < len(r.InstanceSpace[q][j].Cmds); k++ {
 								if r.InstanceSpace[q][j].Cmds[k].K == cmds[i].K {
 									if r.InstanceSpace[q][j].Cmds[k].Op != state.GET || cmds[i].Op != state.GET {
@@ -765,7 +756,13 @@ func (r *Replica) updatePriority(cmds []state.Command, seq int32, deps []int32, 
 							}
 							r.PrintDebug("updatePriority3", "j", j, "r.InstanceSpace[q][j].Deps[replica]", r.InstanceSpace[q][j].Deps[replica], "instance", instance)
 							//r.InstanceSpace[q][j].Deps[replica] = instance
-						} else if int32(q) < replica && int32(q) == r.Id { //优先级更低
+						}
+					} else if int32(q) < replica && int32(q) == r.Id { //优先级更低
+						for j := deps[q] + 1; j <= d; j++ {
+							if r.InstanceSpace[q][j] == nil {
+								continue
+							}
+							r.PrintDebug("updatePriority2", "j", j, "r.InstanceSpace[q][j].Deps[replica]", r.InstanceSpace[q][j].Deps[replica], "instance", instance)
 							if r.InstanceSpace[q][j].Deps[replica] < instance {
 								r.PrintDebug("conflictmap", conflictmap)
 								r.PrintDebug("q", q, "j", j, "r.InstanceSpace[q][j].Deps", r.InstanceSpace[q][j].Deps)
@@ -797,17 +794,11 @@ func (r *Replica) updatePriority(cmds []state.Command, seq int32, deps []int32, 
 			}
 		}
 	}
-	return seq, deps
+	return deps
 }
 
-func (r *Replica) mergeAttributes(seq1 int32, deps1 []int32, seq2 int32, deps2 []int32) (int32, []int32, bool) {
+func (r *Replica) mergeAttributes(deps1 []int32, deps2 []int32) ([]int32, bool) {
 	equal := true
-	if seq1 != seq2 {
-		equal = false
-		if seq2 > seq1 {
-			seq1 = seq2
-		}
-	}
 	for q := 0; q < r.N; q++ {
 		if int32(q) == r.Id {
 			continue
@@ -819,7 +810,7 @@ func (r *Replica) mergeAttributes(seq1 int32, deps1 []int32, seq2 int32, deps2 [
 			}
 		}
 	}
-	return seq1, deps1, equal
+	return deps1, equal
 }
 
 func equal(deps1 []int32, deps2 []int32) bool {
@@ -835,10 +826,10 @@ func (r *Replica) handlePropose(propose *defs.GPropose) {
 	//TODO!! Handle client retries
 	//r.PrintDebug("handlePropose time", time.Now())
 	batchSize := len(r.ProposeChan) + 1
-	r.M.Lock()
+	/*r.M.Lock()
 	r.Stats.M["totalBatching"]++
 	r.Stats.M["totalBatchingSize"] += batchSize
-	r.M.Unlock()
+	r.M.Unlock()*/
 
 	r.crtInstance[r.Id]++
 	r.PrintDebug("r.Id", r.Id, "instance", r.crtInstance[r.Id])
@@ -859,41 +850,35 @@ func (r *Replica) handlePropose(propose *defs.GPropose) {
 
 func (r *Replica) startPhase1(cmds []state.Command, replica int32, instance int32, ballot int32, proposals []*defs.GPropose) {
 	// init command attributes
-	seq := int32(0)
 	deps := make([]int32, r.N)
 	for q := 0; q < r.N; q++ {
 		deps[q] = -1
 	}
-	seq, deps, _ = r.updateAttributes(cmds, seq, deps, replica)
+	deps, _ = r.updateAttributes(cmds, deps, replica)
 	comDeps := make([]int32, r.N)
 	for i := 0; i < r.N; i++ {
 		comDeps[i] = -1
 	}
 
-	inst := r.newInstance(replica, instance, cmds, ballot, ballot, PREACCEPTED, seq, deps)
+	inst := r.newInstance(replica, instance, cmds, ballot, ballot, PREACCEPTED, -1, deps)
 	inst.lb = r.newLeaderBookkeeping(proposals, deps, comDeps, deps, ballot, cmds, PREACCEPTED, -1)
 	r.InstanceSpace[replica][instance] = inst
 	r.PrintDebug("deps", deps)
-	r.updateConflicts(cmds, replica, instance, seq)
+	r.updateConflicts(cmds, replica, instance)
 
-	r.recordInstanceMetadata(r.InstanceSpace[r.Id][instance])
-	r.recordCommands(cmds)
-	r.sync()
+	//r.recordInstanceMetadata(r.InstanceSpace[r.Id][instance])
+	//r.recordCommands(cmds)
+	//r.sync()
+	r.PrintDebug("time", time.Now())
 
-	lb := r.InstanceSpace[replica][instance].lb
-
+	r.PrintDebug("start pareply.Replica", replica, "pareply.Instance", instance, "inst.Deps", inst.Deps, "r.CommittedUpTo", r.CommittedUpTo)
 	reply := &PreAcceptReply{
-		replica,
-		instance,
-		inst.bal,
-		inst.vbal,
-		lb.seq,
-		lb.cmds,
-		lb.deps,
-		r.CommittedUpTo, //CommittedDeps
-		inst.Status,
-		inst.reach,
-		r.CommittedUpTo,
+		Replica:       replica,
+		Instance:      instance,
+		Command:       inst.Cmds,
+		Deps:          inst.Deps,
+		CommittedDeps: r.CommittedUpTo,
+		reach:         inst.reach,
 	}
 	//r.PrintDebug("reply", reply)
 
@@ -917,16 +902,15 @@ func (r *Replica) handlePreAccept(preAccept *PreAccept) {
 		r.InstanceSpace[preAccept.Replica][preAccept.Instance] = inst
 	}
 
-	seq, deps := r.updatePriority(preAccept.Command, preAccept.Seq, preAccept.Deps, preAccept.Replica, preAccept.Instance)
+	deps := r.updatePriority(preAccept.Command, preAccept.Deps, preAccept.Replica, preAccept.Instance)
 
 	inst.Cmds = preAccept.Command
-	inst.Seq = seq
 	inst.Deps = deps
 	inst.bal = preAccept.Ballot
 	inst.vbal = preAccept.Ballot
 	inst.Status = PREACCEPTED_EQ
 	inst.reach[r.Id] = true
-	r.updateConflicts(preAccept.Command, preAccept.Replica, preAccept.Instance, preAccept.Seq)
+	r.updateConflicts(preAccept.Command, preAccept.Replica, preAccept.Instance)
 	r.recordInstanceMetadata(r.InstanceSpace[preAccept.Replica][preAccept.Instance])
 	r.recordCommands(preAccept.Command)
 	r.sync()
@@ -934,27 +918,18 @@ func (r *Replica) handlePreAccept(preAccept *PreAccept) {
 	r.handlePreAcceptReply(&PreAcceptReply{
 		Replica:       preAccept.Replica,
 		Instance:      preAccept.Instance,
-		Ballot:        inst.bal,
-		VBallot:       inst.vbal,
-		Seq:           inst.Seq,
 		Command:       inst.Cmds,
 		Deps:          inst.Deps,
 		CommittedDeps: r.CommittedUpTo,
-		Status:        inst.Status,
 		reach:         inst.reach,
 	})
 	reply := &PreAcceptReply{
-		preAccept.Replica,
-		preAccept.Instance,
-		inst.bal,
-		inst.vbal,
-		inst.Seq,
-		inst.Cmds,
-		inst.Deps,
-		r.CommittedUpTo, //CommittedDeps
-		inst.Status,
-		inst.reach,
-		r.CommittedUpTo,
+		Replica:       preAccept.Replica,
+		Instance:      preAccept.Instance,
+		Command:       inst.Cmds,
+		Deps:          inst.Deps,
+		CommittedDeps: r.CommittedUpTo, //CommittedDeps
+		reach:         inst.reach,
 	}
 	r.PrintDebug("sendPreAcceptReply")
 	r.PrintDebug("reply", reply)
@@ -967,9 +942,9 @@ func (r *Replica) handlePreAccept(preAccept *PreAccept) {
 }
 
 func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
-	r.PrintDebug("handlePreAcceptReply")
+
+	//r.PrintDebug("handlePreAcceptReply")
 	//r.PrintDebug("pareply", pareply)
-	//r.PrintDebug("time", time.Now())
 	inst := r.InstanceSpace[pareply.Replica][pareply.Instance]
 
 	if inst == nil {
@@ -980,30 +955,24 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 		if pareply.Instance > r.crtInstance[pareply.Replica] {
 			r.crtInstance[pareply.Replica] = pareply.Instance
 		}
+		if pareply.Replica != 0 {
+			inst.Deps = r.updatePriority(pareply.Command, pareply.Deps, pareply.Replica, pareply.Instance)
+		} else {
+			inst.Deps = pareply.Deps
+		}
 
-		seq, deps := r.updatePriority(pareply.Command, pareply.Seq, pareply.Deps, pareply.Replica, pareply.Instance)
 		inst.Cmds = pareply.Command
-		inst.Seq = seq
-		inst.Deps = deps
 		inst.Status = PREACCEPTED_EQ
 		inst.reach[r.Id] = true
-		r.updateConflicts(pareply.Command, pareply.Replica, pareply.Instance, pareply.Seq)
-		r.recordInstanceMetadata(r.InstanceSpace[pareply.Replica][pareply.Instance])
-		r.recordCommands(pareply.Command)
-		r.sync()
+		r.updateConflicts(pareply.Command, pareply.Replica, pareply.Instance)
 
 		reply := &PreAcceptReply{
-			pareply.Replica,
-			pareply.Instance,
-			inst.bal,
-			inst.vbal,
-			inst.Seq,
-			inst.Cmds,
-			inst.Deps,
-			r.CommittedUpTo, //CommittedDeps
-			inst.Status,
-			inst.reach,
-			r.CommittedUpTo,
+			Replica:       pareply.Replica,
+			Instance:      pareply.Instance,
+			Command:       inst.Cmds,
+			Deps:          inst.Deps,
+			CommittedDeps: r.CommittedUpTo, //CommittedDeps
+			reach:         inst.reach,
 		}
 		//r.PrintDebug("sendPreAcceptReply")
 		//r.PrintDebug("reply", reply)
@@ -1013,123 +982,81 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 				r.SendMsg(int32(i), r.preAcceptReplyRPC, reply)
 			}
 		}
+
+		//r.recordInstanceMetadata(r.InstanceSpace[pareply.Replica][pareply.Instance])
+		//r.recordCommands(pareply.Command)
+		//r.sync()
 	}
-
-	//r.PrintDebug("handlePreAcceptReply2")
-	lb := inst.lb
-
+	if inst.Status >= COMMITTED {
+		return
+	}
+	r.PrintDebug("handlePreAcceptReply time", time.Now())
 	//isInitialBallot := isInitialBallot(lb.lastTriedBallot, pareply.Replica)
 	//r.PrintDebug("handlePreAcceptReply3")
-	r.PrintDebug("pareply.Deps", pareply.Deps)
+	//r.PrintDebug("pareply.Deps", pareply.Deps)
 	//r.PrintDebug("inst.Deps", inst.Deps)
 	//r.PrintDebug("pareply.Replica", pareply.Replica)
 	//r.PrintDebug("r.Id", r.Id)
-	var seq int32
-	var deps []int32
+
 	var allEqual bool
 
-	if pareply.Replica == r.Id {
-		seq, deps, allEqual = r.mergeAttributes(lb.seq, lb.deps, pareply.Seq, pareply.Deps)
-		r.PrintDebug("lb.deps", lb.deps)
-	} else {
-		seq, deps, allEqual = r.mergeAttributes(inst.Seq, inst.Deps, pareply.Seq, pareply.Deps)
-	}
+	inst.Deps, allEqual = r.mergeAttributes(inst.Deps, pareply.Deps)
+
 	//r.PrintDebug("handlePreAcceptReply4")
 	//r.Seqqueue = r.mergeSeqqueue(r.Seqqueue, pareply.seqqueue)
 
 	//r.Seqqueue = r.prioritySeqqueue(r.Seqqueue)
 
-	if pareply.Replica == r.Id {
-		inst.lb.allEqual = inst.lb.allEqual && allEqual
-	}
 	if !allEqual {
-		r.M.Lock()
+		//r.M.Lock()
 		r.Stats.M["conflicted"]++
-		r.M.Unlock()
+		//r.M.Unlock()
 	}
 
 	r.PrintDebug("pareply.reach", pareply.reach)
 	r.PrintDebug("inst.reach", inst.reach)
-	preAcceptOKs := 0
+
 	inst.reach[r.Id] = true
+	inst.preAcceptOKs = 0
 	for i := 0; i < r.N; i++ {
 		if pareply.reach[i] {
 			inst.reach[i] = true
 		}
 		if pareply.reach[i] || inst.reach[i] {
-			preAcceptOKs++
+			inst.preAcceptOKs++
 		}
 	}
 
-	priorityOKs := true
+	inst.priorityOKs = true
 	for i := 0; i < int(pareply.Replica); i++ {
 		if !inst.reach[i] {
-			priorityOKs = false
+			inst.priorityOKs = false
 		}
 	}
 
-	if r.Id == pareply.Replica {
-		if lb.status <= PREACCEPTED_EQ {
-			lb.deps = deps
-			inst.Deps = deps
-			lb.seq = seq
-		}
-	} else {
-		if inst.Status <= PREACCEPTED_EQ {
-			inst.Deps = deps
-			inst.Seq = seq
-		}
-	}
 	//r.PrintDebug("handlePreAcceptReply7")
-	allCommitted := true
 
-	committedDeps := pareply.CommittedDeps
+	//r.PrintDebug("pareply.CommittedDeps", pareply.CommittedDeps)
+	//r.PrintDebug("pareply.CommittedUpTo", pareply.CommittedUpTo)
 
-	if pareply.Replica == r.Id {
-		r.PrintDebug("pareply.CommittedDeps", pareply.CommittedDeps)
-		r.PrintDebug("inst.lb.committedDeps", inst.lb.committedDeps)
-		//r.PrintDebug("pareply.CommittedUpTo", pareply.CommittedUpTo)
-		r.PrintDebug("r.CommittedUpTo", r.CommittedUpTo)
-		r.PrintDebug("lb.deps", lb.deps)
-		for q := 0; q < r.N; q++ {
-			if inst.lb.committedDeps[q] < pareply.CommittedDeps[q] {
-				inst.lb.committedDeps[q] = pareply.CommittedDeps[q]
-			}
-			if inst.lb.committedDeps[q] < r.CommittedUpTo[q] {
-				inst.lb.committedDeps[q] = r.CommittedUpTo[q]
-			} // 这里有一个可以优化的地方，如果pareply.CommittedDeps[q] > r.CommittedUpTo[q]，说明在其他 replica 上已经 commit 了，这里可以也 commit，但这里的 dep 可能还没更新，需要其他人携带 dep 信息
-			// 如果只是数量不够那没问题，如果是 dep 不够，那需要等待其他人携带 dep 信息
-			// 还有一个优化，不一定是在 prepare 转发，可以在这里转发
-			if r.CommittedUpTo[q] < lb.deps[q] {
-				allCommitted = false
-			}
+	r.PrintDebug("r.CommittedUpTo", r.CommittedUpTo)
+	r.PrintDebug("inst.Deps", inst.Deps)
+	inst.allCommitted = true
+	for q := 0; q < r.N; q++ {
+		if pareply.CommittedDeps[q] < r.CommittedUpTo[q] {
+			pareply.CommittedDeps[q] = r.CommittedUpTo[q]
 		}
-	} else {
-		r.PrintDebug("pareply.CommittedDeps", pareply.CommittedDeps)
-		//r.PrintDebug("pareply.CommittedUpTo", pareply.CommittedUpTo)
-		r.PrintDebug("r.CommittedUpTo", r.CommittedUpTo)
-		r.PrintDebug("inst.Deps", inst.Deps)
-		for q := 0; q < r.N; q++ {
-			if committedDeps[q] < r.CommittedUpTo[q] {
-				committedDeps[q] = r.CommittedUpTo[q]
-			}
-			if r.CommittedUpTo[q] < inst.Deps[q] {
-				allCommitted = false
-			}
+		if r.CommittedUpTo[q] < inst.Deps[q] {
+			inst.allCommitted = false
 		}
 	}
 
-	precondition := priorityOKs && allCommitted && preAcceptOKs > (r.N/2)
-	r.PrintDebug("pareply.Replica", pareply.Replica, "pareply.Instance", pareply.Instance, "priorityOKs", priorityOKs, "allCommitted", allCommitted, "preAcceptOKs", preAcceptOKs, "precondition", precondition)
-	if precondition {
+	precondition := inst.priorityOKs && inst.allCommitted && inst.preAcceptOKs > (r.N/2)
+	r.PrintDebug("pareply.Replica", pareply.Replica, "pareply.Instance", pareply.Instance, "priorityOKs", inst.priorityOKs, "allCommitted", inst.allCommitted, "preAcceptOKs", inst.preAcceptOKs, "precondition", precondition)
+	if precondition && inst.Status <= PREACCEPTED_EQ {
+		r.PrintDebug("handlePreAcceptReply.time", time.Since(inst.time))
+		inst.Status = COMMITTED
 		if pareply.Replica == r.Id {
-			lb.status = COMMITTED
-
-			inst.Status = lb.status
-			inst.bal = lb.ballot
-			inst.Cmds = lb.cmds
-			inst.Deps = lb.deps
-			inst.Seq = lb.seq
 
 			if inst.lb.clientProposals != nil && !r.Dreply {
 				for i := 0; i < len(inst.lb.clientProposals); i++ {
@@ -1144,21 +1071,34 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 				}
 			}
 
-		} else {
-			inst.Status = COMMITTED
 		}
-		r.recordInstanceMetadata(inst)
-		r.sync()
+		//r.recordCommands(inst.Cmds)
+		//r.recordInstanceMetadata(inst)
+		//r.sync()
 
 		r.updateCommitted(pareply.Replica)
-		r.recordCommands(inst.Cmds)
+		r.PrintDebug("r.crtInstance", r.crtInstance)
+		for p := 0; p < r.N; p++ {
+			for j := inst.Deps[p] + 1; j <= r.crtInstance[p]; j++ {
+				if r.InstanceSpace[p][j] != nil && r.InstanceSpace[p][j].Deps != nil && r.InstanceSpace[p][j].Deps[pareply.Replica] == pareply.Instance && r.InstanceSpace[p][j].Status <= PREACCEPTED_EQ && r.InstanceSpace[p][j].preAcceptOKs > (r.N/2) && r.InstanceSpace[p][j].priorityOKs {
+					r.PrintDebug("retry preaccept")
+					r.handlePreAcceptReply(&PreAcceptReply{
+						Replica:       int32(p),
+						Instance:      j,
+						Deps:          r.InstanceSpace[p][j].Deps,
+						CommittedDeps: r.CommittedUpTo,
+						reach:         r.InstanceSpace[p][j].reach,
+					})
+				}
+			}
+		}
 
-		r.M.Lock()
+		/*r.M.Lock()
 		r.Stats.M["fast"]++
 		if inst.proposeTime != 0 {
 			r.Stats.M["totalCommitTime"] += int(time.Now().UnixNano() - inst.proposeTime)
 		}
-		r.M.Unlock()
+		r.M.Unlock()*/
 	}
 }
 
@@ -1301,7 +1241,7 @@ func (r *Replica) handleCommit(commit *Commit) {
 	inst.Status = COMMITTED
 
 	r.PrintDebug("updateConflicts in handleCommit")
-	r.updateConflicts(commit.Command, commit.Replica, commit.Instance, commit.Seq)
+	r.updateConflicts(commit.Command, commit.Replica, commit.Instance)
 	r.updateCommitted(commit.Replica)
 	r.recordInstanceMetadata(r.InstanceSpace[commit.Replica][commit.Instance])
 	r.recordCommands(commit.Command)
@@ -1459,7 +1399,7 @@ func (r *Replica) handlePrepareReply(preply *PrepareReply) {
 	} else if lb.status == PREACCEPTED || lb.status == PREACCEPTED_EQ {
 		for _, element := range lb.prepareReplies {
 			if element.VBallot == lb.ballot && element.Status >= PREACCEPTED {
-				_, _, equal := r.mergeAttributes(lb.seq, lb.deps, element.Seq, element.Deps)
+				_, equal := r.mergeAttributes(lb.deps, element.Deps)
 				if !equal {
 					allEqual = false
 					break
@@ -1718,7 +1658,7 @@ func (r *Replica) newInstanceDefault(replica int32, instance int32) *Instance {
 func (r *Replica) newInstance(replica int32, instance int32, cmds []state.Command, cballot int32, lballot int32, status int8, seq int32, deps []int32) *Instance {
 	reach := make([]bool, r.N)
 	reach[replica] = true
-	return &Instance{cmds, cballot, lballot, status, seq, deps, nil, 0, 0, nil, time.Now().UnixNano(), &instanceId{replica, instance}, reach}
+	return &Instance{cmds, cballot, lballot, status, seq, deps, nil, 0, 0, nil, time.Now().UnixNano(), &instanceId{replica, instance}, reach, false, 0, false, time.Now()}
 }
 
 func (r *Replica) newLeaderBookkeepingDefault() *LeaderBookkeeping {

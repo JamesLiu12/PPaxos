@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"io"
 	"sync"
+	"time"
 
 	fastrpc "github.com/imdea-software/swiftpaxos/rpc"
 	"github.com/imdea-software/swiftpaxos/state"
@@ -42,16 +43,15 @@ type PreAccept struct {
 type PreAcceptReply struct {
 	Replica       int32
 	Instance      int32
-	Ballot        int32
-	VBallot       int32
-	Seq           int32
 	Command       []state.Command
 	Deps          []int32
 	CommittedDeps []int32
-	Status        int8
 	reach         []bool
-	CommittedUpTo []int32
+	RecvTs        time.Time
 }
+
+// SetRecvTs allows replica listener to stamp receive time without cross-package import cycles.
+func (p *PreAcceptReply) SetRecvTs(t time.Time) { p.RecvTs = t }
 
 type PreAcceptOK struct {
 	Instance int32
@@ -823,10 +823,10 @@ func (p *PreAcceptReplyCache) Put(t *PreAcceptReply) {
 	p.mu.Unlock()
 }
 func (t *PreAcceptReply) Marshal(wire io.Writer) {
-	var b [21]byte
+	var b [8]byte
 	var bs []byte
 	var tmp bool
-	bs = b[:21]
+	bs = b[:8]
 	tmp32 := t.Replica
 	bs[0] = byte(tmp32)
 	bs[1] = byte(tmp32 >> 8)
@@ -837,22 +837,6 @@ func (t *PreAcceptReply) Marshal(wire io.Writer) {
 	bs[5] = byte(tmp32 >> 8)
 	bs[6] = byte(tmp32 >> 16)
 	bs[7] = byte(tmp32 >> 24)
-	tmp32 = t.Ballot
-	bs[8] = byte(tmp32)
-	bs[9] = byte(tmp32 >> 8)
-	bs[10] = byte(tmp32 >> 16)
-	bs[11] = byte(tmp32 >> 24)
-	tmp32 = t.VBallot
-	bs[12] = byte(tmp32)
-	bs[13] = byte(tmp32 >> 8)
-	bs[14] = byte(tmp32 >> 16)
-	bs[15] = byte(tmp32 >> 24)
-	tmp32 = t.Seq
-	bs[16] = byte(tmp32)
-	bs[17] = byte(tmp32 >> 8)
-	bs[18] = byte(tmp32 >> 16)
-	bs[19] = byte(tmp32 >> 24)
-	bs[20] = byte(t.Status)
 	wire.Write(bs)
 	bs = b[:]
 	alen1 := int64(len(t.Command))
@@ -906,19 +890,7 @@ func (t *PreAcceptReply) Marshal(wire io.Writer) {
 		wire.Write(bs)
 	}
 	bs = b[:]
-	alen5 := int64(len(t.CommittedUpTo))
-	if wlen := binary.PutVarint(bs, alen5); wlen >= 0 {
-		wire.Write(b[0:wlen])
-	}
-	for i := int64(0); i < alen5; i++ {
-		bs = b[:4]
-		tmp32 = t.CommittedUpTo[i]
-		bs[0] = byte(tmp32)
-		bs[1] = byte(tmp32 >> 8)
-		bs[2] = byte(tmp32 >> 16)
-		bs[3] = byte(tmp32 >> 24)
-		wire.Write(bs)
-	}
+
 }
 
 func (t *PreAcceptReply) Unmarshal(rr io.Reader) error {
@@ -927,18 +899,14 @@ func (t *PreAcceptReply) Unmarshal(rr io.Reader) error {
 	if wire, ok = rr.(byteReader); !ok {
 		wire = bufio.NewReader(rr)
 	}
-	var b [21]byte
+	var b [8]byte
 	var bs []byte
-	bs = b[:21]
-	if _, err := io.ReadAtLeast(wire, bs, 21); err != nil {
+	bs = b[:8]
+	if _, err := io.ReadAtLeast(wire, bs, 8); err != nil {
 		return err
 	}
 	t.Replica = int32((uint32(bs[0]) | (uint32(bs[1]) << 8) | (uint32(bs[2]) << 16) | (uint32(bs[3]) << 24)))
 	t.Instance = int32((uint32(bs[4]) | (uint32(bs[5]) << 8) | (uint32(bs[6]) << 16) | (uint32(bs[7]) << 24)))
-	t.Ballot = int32((uint32(bs[8]) | (uint32(bs[9]) << 8) | (uint32(bs[10]) << 16) | (uint32(bs[11]) << 24)))
-	t.VBallot = int32((uint32(bs[12]) | (uint32(bs[13]) << 8) | (uint32(bs[14]) << 16) | (uint32(bs[15]) << 24)))
-	t.Seq = int32((uint32(bs[16]) | (uint32(bs[17]) << 8) | (uint32(bs[18]) << 16) | (uint32(bs[19]) << 24)))
-	t.Status = int8(bs[20])
 	alen1, err := binary.ReadVarint(wire)
 	if err != nil {
 		return err
@@ -982,18 +950,7 @@ func (t *PreAcceptReply) Unmarshal(rr io.Reader) error {
 		}
 		t.reach[i] = bs[0] != 0
 	}
-	alen5, err := binary.ReadVarint(wire)
-	if err != nil {
-		return err
-	}
-	t.CommittedUpTo = make([]int32, alen5)
-	for i := int64(0); i < alen5; i++ {
-		bs = b[:4]
-		if _, err := io.ReadAtLeast(wire, bs, 4); err != nil {
-			return err
-		}
-		t.CommittedUpTo[i] = int32((uint32(bs[0]) | (uint32(bs[1]) << 8) | (uint32(bs[2]) << 16) | (uint32(bs[3]) << 24)))
-	}
+
 	return nil
 }
 
