@@ -15,7 +15,6 @@ import (
 	"github.com/imdea-software/swiftpaxos/curp"
 	"github.com/imdea-software/swiftpaxos/dlog"
 	"github.com/imdea-software/swiftpaxos/master"
-	"github.com/imdea-software/swiftpaxos/ppaxos"
 	"github.com/imdea-software/swiftpaxos/replica/defs"
 	"github.com/imdea-software/swiftpaxos/swift"
 )
@@ -146,12 +145,6 @@ func runSingleClient(c *config.Config, i int, verbose bool) {
 	}
 	if p := strings.ToLower(c.Protocol); p == "swiftpaxos" {
 		cl := swift.NewClient(b, len(c.ReplicaAddrs))
-		if cl == nil {
-			return
-		}
-		cl.Loop()
-	} else if p := strings.ToLower(c.Protocol); p == "ppaxos" {
-		cl := ppaxos.NewClient(b, len(c.ReplicaAddrs))
 		if cl == nil {
 			return
 		}
