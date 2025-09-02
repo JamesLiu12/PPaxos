@@ -1216,67 +1216,65 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 	precondition := inst.priorityOKs && inst.allCommitted && inst.preAcceptOKs > (r.N/2)
 	r.PrintDebug("pareply.Replica", pareply.Replica, "pareply.Instance", pareply.Instance, "priorityOKs", inst.priorityOKs, "allCommitted", inst.allCommitted, "preAcceptOKs", inst.preAcceptOKs, "precondition", precondition)
 	if precondition && inst.Status <= PREACCEPTED_EQ {
+		r.PrintDebug("pareply.Replica", pareply.Replica, "pareply.Instance", pareply.Instance, "final deps", inst.Deps)
 		r.PrintDebug("latency time", time.Since(inst.time))
 		inst.Status = COMMITTED
 		r.updateCommitted(pareply.Replica)
 
 		if pareply.Replica == r.Id {
-			if inst.lb.clientProposals != nil {
-				for i := 0; i < len(inst.lb.clientProposals); i++ {
-					r.PrintDebug("replying to client", i, "inst.lb.clientProposals[i].CommandId", inst.lb.clientProposals[i].CommandId)
-					r.ReplyProposeTS(
-						&defs.ProposeReplyTS{
-							OK:        TRUE,
-							CommandId: inst.lb.clientProposals[i].CommandId,
-							Value:     state.NIL(),
-							Timestamp: inst.lb.clientProposals[i].Timestamp},
-						inst.lb.clientProposals[i].Reply,
-						inst.lb.clientProposals[i].Mutex)
+
+			key := instKey(pareply.Replica, pareply.Instance)
+			r.delivered.Set(key, struct{}{})
+
+			for idx := 0; idx < len(inst.lb.clientProposals); idx++ {
+				prop := inst.lb.clientProposals[idx]
+				var retVal state.Value
+				if prop.Command.Op != state.PUT {
+					retVal = prop.Command.Execute(r.State) // GET / SCAN
+				} else {
+					prop.Command.Execute(r.State) // PUT 落库
+					retVal = state.NIL()          // 只需 ACK
 				}
+
+				r.ReplyProposeTS(
+					&defs.ProposeReplyTS{
+						OK:        TRUE,
+						CommandId: prop.CommandId,
+						Value:     retVal,
+						Timestamp: prop.Timestamp},
+					prop.Reply,
+					prop.Mutex)
 			}
 		}
 
-		allExeced := true
-		for p := 0; p < r.N; p++ {
-			if r.ExecedUpTo[p] < inst.Deps[p] {
-				r.PrintDebug("allExeced1", "p", p, "r.ExecedUpTo[p]", r.ExecedUpTo[p], "inst.Deps[p]", inst.Deps[p])
-				allExeced = false
-				break
-			}
-		}
-		if allExeced {
-			select {
-			case r.deliverChan <- &instanceId{pareply.Replica, pareply.Instance}:
-			default:
-			}
-		}
-		//r.recordCommands(inst.Cmds)
-		//r.recordInstanceMetadata(inst)
-		//r.sync()
-
-		//r.PrintDebug("r.crtInstance", r.crtInstance)
-		for p := 0; p < r.N; p++ {
-			for j := inst.Deps[p] + 1; j <= r.crtInstance[p]; j++ {
-				if r.InstanceSpace[p][j] != nil && r.InstanceSpace[p][j].Deps != nil && r.InstanceSpace[p][j].Deps[pareply.Replica] == pareply.Instance && r.InstanceSpace[p][j].Status <= PREACCEPTED_EQ && r.InstanceSpace[p][j].preAcceptOKs > (r.N/2) && r.InstanceSpace[p][j].priorityOKs {
-					r.PrintDebug("retry preaccept")
-					r.handlePreAcceptReply(&PreAcceptReply{
-						Replica:       int32(p),
-						Instance:      j,
-						Deps:          r.InstanceSpace[p][j].Deps,
-						CommittedDeps: r.CommittedUpTo,
-						reach:         r.InstanceSpace[p][j].reach,
-					})
-				}
-			}
-		}
-
-		/*r.M.Lock()
-		r.Stats.M["fast"]++
-		if inst.proposeTime != 0 {
-			r.Stats.M["totalCommitTime"] += int(time.Now().UnixNano() - inst.proposeTime)
-		}
-		r.M.Unlock()*/
 	}
+	//r.recordCommands(inst.Cmds)
+	//r.recordInstanceMetadata(inst)
+	//r.sync()
+
+	//r.PrintDebug("r.crtInstance", r.crtInstance)
+	for p := 0; p < r.N; p++ {
+		for j := inst.Deps[p] + 1; j <= r.crtInstance[p]; j++ {
+			if r.InstanceSpace[p][j] != nil && r.InstanceSpace[p][j].Deps != nil && r.InstanceSpace[p][j].Deps[pareply.Replica] == pareply.Instance && r.InstanceSpace[p][j].Status <= PREACCEPTED_EQ && r.InstanceSpace[p][j].preAcceptOKs > (r.N/2) && r.InstanceSpace[p][j].priorityOKs {
+				r.PrintDebug("retry preaccept")
+				r.handlePreAcceptReply(&PreAcceptReply{
+					Replica:       int32(p),
+					Instance:      j,
+					Deps:          r.InstanceSpace[p][j].Deps,
+					CommittedDeps: r.CommittedUpTo,
+					reach:         r.InstanceSpace[p][j].reach,
+				})
+			}
+		}
+	}
+
+	/*r.M.Lock()
+	r.Stats.M["fast"]++
+	if inst.proposeTime != 0 {
+		r.Stats.M["totalCommitTime"] += int(time.Now().UnixNano() - inst.proposeTime)
+	}
+	r.M.Unlock()*/
+
 }
 
 func (r *Replica) handleAccept(accept *Accept) {
