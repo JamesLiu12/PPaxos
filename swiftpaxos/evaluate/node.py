@@ -1,18 +1,21 @@
 from typing import List
 import subprocess
 import os
+from abc import ABC, abstractmethod
 
-class Node:
+class Node(ABC):
     repo_url = "https://github.com/JamesLiu12/PPaxos"
     repo_path = "~/PPaxos/"
     working_dir = os.path.join(repo_path, "swiftpaxos")
     
-    def __init__(self, address: str, user: str, identity_file: str, alias: str, config_path: str):
+    def __init__(self, address: str, user: str, identity_file: str, config_path: str):
         self.address = address
         self.user = user
         self.identity_file = identity_file
-        self.alias = alias
         self.config_path = config_path
+
+    def __del__(self):
+        self.kill()
         
     def ssh_cmd(self, *remote_cmd) -> List[str]:
         cmd = [
@@ -35,3 +38,11 @@ class Node:
             self.ssh_cmd(f"rm -rf {Node.repo_path}")
         clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} ~/PPaxos && cd {Node.working_dir} && go install -buildvcs=false")
         return subprocess.run(clone_cmd)
+    
+    @abstractmethod
+    def run():
+        pass
+
+    @abstractmethod
+    def kill():
+        pass
