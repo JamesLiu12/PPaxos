@@ -20,10 +20,12 @@ class Node(ABC):
     def ssh_cmd(self, *remote_cmd) -> List[str]:
         cmd = [
             "ssh",
+            "-o", "StrictHostKeyChecking=no",
             "-i", self.identity_file,
             f"{self.user}@{self.address}",
-            f"yes | {' '.join(remote_cmd)}"
+            *remote_cmd
         ]
+        print(cmd)
         return cmd
     
     def run_cmd(self, *remote_cmd):
@@ -35,8 +37,8 @@ class Node(ABC):
         if dir_exists and not forced:
             return None
         if dir_exists:
-            self.ssh_cmd(f"rm -rf {Node.repo_path}")
-        clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} ~/PPaxos && cd {Node.working_dir} && go install -buildvcs=false")
+            self.run_cmd(f"rm -rf {Node.repo_path}")
+        clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} {Node.repo_path} && cd {Node.working_dir} && go build -buildvcs=false")
         return subprocess.run(clone_cmd)
     
     @abstractmethod
