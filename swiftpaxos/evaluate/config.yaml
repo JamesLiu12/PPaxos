@@ -1,0 +1,36 @@
+master:
+  address: "ec2-95-40-58-105.ap-east-1.compute.amazonaws.com"
+  user: "ubuntu"
+  identity_file: "~/roxwell.pem"
+  config_path: "local.conf"
+  protocol: "paxos"
+
+servers:
+  - address: "ec2-95-40-58-106.ap-east-1.compute.amazonaws.com"
+    user: "ubuntu"
+    identity_file: "~/roxwell.pem"
+    config_path: "local.conf"
+    alias: "server-1"
+    protocol: "paxos"
+  - address: "ec2-95-40-58-107.ap-east-1.compute.amazonaws.com"
+    user: "ubuntu"
+    identity_file: "~/roxwell.pem"
+    config_path: "local.conf"
+    alias: "server-2"
+    protocol: "paxos"
+
+clients:
+  - address: "ec2-95-40-58-108.ap-east-1.compute.amazonaws.com"
+    user: "ubuntu"
+    identity_file: "~/roxwell.pem"
+    config_path: "local.conf"
+    alias: "client-1"
+  - address: "ec2-95-40-58-109.ap-east-1.compute.amazonaws.com"
+    user: "ubuntu"
+    identity_file: "~/roxwell.pem"
+    config_path: "local.conf"
+    alias: "client-2"
+
+repo_url: "https://github.com/JamesLiu12/PPaxos"
+repo_path: "~/PPaxos/"
+working_dir: "~/PPaxos/swiftpaxos/"

@@ -12,7 +12,7 @@ class Node(ABC):
         self.address = address
         self.user = user
         self.identity_file = identity_file
-        self.config_path = config_path
+        self.config_path = os.path.join(Node.working_dir, config_path)
 
     def __del__(self):
         self.kill()
