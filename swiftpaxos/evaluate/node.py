@@ -13,9 +13,6 @@ class Node(ABC):
         self.user = user
         self.identity_file = identity_file
         self.config_path = os.path.join(Node.working_dir, config_path)
-
-    def __del__(self):
-        self.kill()
         
     def ssh_cmd(self, *remote_cmd) -> List[str]:
         cmd = [
