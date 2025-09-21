@@ -11,7 +11,7 @@ class Client(Node):
         return self.run_cmd(f"{os.path.join(Node.working_dir, 'swiftpaxos')}", 
                             "-run client", 
                             f"-config {self.config_path}", 
-                            f"-alias {self.alias}"
+                            f"-alias {self.alias}",
                             f"-protocol {self.protocol}")
     
     def kill(self):
