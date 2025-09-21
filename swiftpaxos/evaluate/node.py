@@ -22,7 +22,7 @@ class Node(ABC):
             "ssh",
             "-i", self.identity_file,
             f"{self.user}@{self.address}",
-            *remote_cmd
+            f"yes | {' '.join(remote_cmd)}"
         ]
         return cmd
     
