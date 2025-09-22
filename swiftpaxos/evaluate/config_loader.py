@@ -50,6 +50,6 @@ class ConfigLoader:
             ) for client_conf in config["clients"]
         ]
 
-    def _read_config(path) -> Dict:
+    def _read_config(self, path) -> Dict:
         with open(path, 'r') as f:
             return yaml.safe_load(f)    

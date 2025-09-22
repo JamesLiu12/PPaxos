@@ -28,6 +28,9 @@ class Node(ABC):
     def run_cmd(self, *remote_cmd):
         return subprocess.run(self.ssh_cmd(*remote_cmd))
     
+    def run_cmds(self, remote_cmds: List):
+        return [self.run_cmd(cmd) for cmd in remote_cmds]
+    
     def init_repo(self):
         check_cmd = self.ssh_cmd(f"test -d {Node.repo_path}")
         dir_exists = subprocess.run(check_cmd).returncode == 0
