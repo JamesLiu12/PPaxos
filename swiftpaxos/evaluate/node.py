@@ -28,13 +28,11 @@ class Node(ABC):
     def run_cmd(self, *remote_cmd):
         return subprocess.run(self.ssh_cmd(*remote_cmd))
     
-    def init_repo(self, forced = False):
+    def init_repo(self):
         check_cmd = self.ssh_cmd(f"test -d {Node.repo_path}")
         dir_exists = subprocess.run(check_cmd).returncode == 0
-        if dir_exists and not forced:
-            return None
         if dir_exists:
-            self.run_cmd(f"rm -rf {Node.repo_path}")
+            return self.run_cmd(f"cd {Node.repo_path} && git pull")
         clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} {Node.repo_path} && cd {Node.working_dir} && go build -buildvcs=false")
         return subprocess.run(clone_cmd)
     
