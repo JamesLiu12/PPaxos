@@ -1,20 +1,14 @@
 import re
 import os
-from dataclasses import dataclass, asdict
 from typing import List, Dict, Any
 import yaml
-
-@dataclass
-class LogEntry:
-    date: str
-    time: str
-    rtt: str
+from log_entry import LogEntry, dump_to_yaml
 
 nfs_path = '/exports/paxos'
-test_number = 1
+test_name = "1"
 output_file = 'out/conflict0.yaml'
 
-result_dir = os.path.join(nfs_path, str(test_number))
+result_dir = os.path.join(nfs_path, test_name)
 
 # Protocol -> Client -> Logs
 result: Dict[str, Dict[str, List[LogEntry]]] = {}
@@ -75,18 +69,6 @@ def is_time(data: str):
 
 def is_float(data: str):
     return bool(re.fullmatch(r'(?:\d+\.\d*|\.\d+)', data))
-
-def dump_to_yaml(data: Dict[str, Dict[str, List[LogEntry]]], path: str):
-    serializable: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
-    for proto, clients in data.items():
-        serializable[proto] = {}
-        for client, entries in clients.items():
-            serializable[proto][client] = [asdict(e) for e in entries]
-
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-
-    with open(path, 'w', encoding='utf-8') as f:
-        yaml.safe_dump(serializable, f, sort_keys=False)
 
 if __name__ == '__main__':
     traverse_results(result_dir)
