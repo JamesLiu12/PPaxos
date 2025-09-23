@@ -2,7 +2,6 @@ from typing import List
 import subprocess
 import os
 from abc import ABC, abstractmethod
-from datetime import datetime
 
 class Node(ABC):
     repo_url = "https://github.com/JamesLiu12/PPaxos"
