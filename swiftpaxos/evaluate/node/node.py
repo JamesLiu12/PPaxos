@@ -9,7 +9,7 @@ class Node(ABC):
     working_dir = os.path.join(repo_path, "swiftpaxos")
     nfs_server_path = "/exports/paxos"
     nfs_client_path = "/mnt/nfs/paxos"
-    test_number = "1"
+    test_name = "1"
     
     def __init__(self, address: str, user: str, identity_file: str, config_path: str):
         self.address = address

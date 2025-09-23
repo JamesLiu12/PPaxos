@@ -24,11 +24,11 @@ clients:
     user: "ubuntu"
     identity_file: "~/roxwell.pem"
     config_path: "local.conf"
-    alias: "client-1"
+    alias: "client"
 
 repo_url: "https://github.com/JamesLiu12/PPaxos"
 repo_path: "~/PPaxos/"
 working_dir: "~/PPaxos/swiftpaxos/"
 nfs_server_path: "/exports/paxos"
 nfs_client_path: "/mnt/nfs/paxos"
-test_number: "0"
+test_name: "conflict0"
