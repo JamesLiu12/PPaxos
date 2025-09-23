@@ -1,18 +1,18 @@
 master:
-  address: "ec2-16-162-120-31.ap-east-1.compute.amazonaws.com"
+  address: "ec2-43-199-45-127.ap-east-1.compute.amazonaws.com"
   user: "ubuntu"
   identity_file: "~/roxwell.pem"
   config_path: "local.conf"
   protocol: "paxos"
 
 servers:
-  - address: "ec2-18-162-148-109.ap-east-1.compute.amazonaws.com"
+  - address: "ec2-16-163-40-158.ap-east-1.compute.amazonaws.com"
     user: "ubuntu"
     identity_file: "~/roxwell.pem"
     config_path: "local.conf"
     alias: "server-1"
     protocol: "paxos"
-  - address: "ec2-95-40-52-197.ap-east-1.compute.amazonaws.com"
+  - address: "ec2-43-199-147-111.ap-east-1.compute.amazonaws.com"
     user: "ubuntu"
     identity_file: "~/roxwell.pem"
     config_path: "local.conf"
@@ -20,7 +20,7 @@ servers:
     protocol: "paxos"
 
 clients:
-  - address: "ec2-43-199-216-231.ap-east-1.compute.amazonaws.com"
+  - address: "ec2-18-167-94-16.ap-east-1.compute.amazonaws.com"
     user: "ubuntu"
     identity_file: "~/roxwell.pem"
     config_path: "local.conf"
