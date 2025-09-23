@@ -7,6 +7,8 @@ class Node(ABC):
     repo_url = "https://github.com/JamesLiu12/PPaxos"
     repo_path = "~/PPaxos/"
     working_dir = os.path.join(repo_path, "swiftpaxos")
+    nfs_server_path = "/exports/paxos"
+    nfs_client_path = "/mnt/nfs/paxos"
     
     def __init__(self, address: str, user: str, identity_file: str, config_path: str):
         self.address = address

@@ -12,5 +12,5 @@ if __name__ == "__main__":
             "sudo apt-get update -y",
             "sudo apt-get install -y nfs-common",
             "sudo mkdir -p /mnt/nfs/paxos",
-            f"sudo mount {master.address}:/exports/paxos /mnt/nfs/paxos"
+            f"sudo mount {master.address}:{Node.nfs_server_path} {Node.nfs_client_path}"
             ])

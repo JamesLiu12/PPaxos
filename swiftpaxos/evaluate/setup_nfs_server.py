@@ -7,10 +7,10 @@ if __name__ == "__main__":
     master.run_cmds([
         "sudo apt-get update -y",
         "sudo apt-get install -y nfs-kernel-server",
-        "sudo mkdir -p /exports/paxos",
+        f"sudo mkdir -p {Node.nfs_server_path}",
         "sudo rm -f /etc/exports",
         "sudo touch /etc/exports",
-        'sudo bash -c "echo /exports/paxos *\(rw,no_subtree_check\) >> /etc/exports"',
+        f'sudo bash -c "echo {Node.nfs_server_path} *\(rw,no_subtree_check\) >> /etc/exports"',
         "sudo exportfs -ra",
         "sudo systemctl restart nfs-kernel-server"
         ])

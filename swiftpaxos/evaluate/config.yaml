@@ -29,3 +29,5 @@ clients:
 repo_url: "https://github.com/JamesLiu12/PPaxos"
 repo_path: "~/PPaxos/"
 working_dir: "~/PPaxos/swiftpaxos/"
+nfs_server_path: "/exports/paxos"
+nfs_client_path: "/mnt/nfs/paxos"

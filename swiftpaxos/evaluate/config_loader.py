@@ -17,6 +17,8 @@ class ConfigLoader:
         Node.repo_url = config["repo_url"]
         Node.repo_path = config["repo_path"]
         Node.working_dir = config["working_dir"]
+        Node.nfs_server_path = config["nfs_server_path"]
+        Node.nfs_client_path = config["nfs_client_path"]
 
         master_conf = config["master"]
         self.master = Master(
