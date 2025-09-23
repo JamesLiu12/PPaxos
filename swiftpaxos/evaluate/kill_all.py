@@ -5,8 +5,6 @@ from config_loader import ConfigLoader
 
 def run_node(node: Node):
     node.kill()
-    node.init_repo()
-    node.run()
 
 if __name__ == "__main__":
     config_loader = ConfigLoader()
