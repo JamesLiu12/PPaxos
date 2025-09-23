@@ -2,6 +2,7 @@ from typing import List
 import subprocess
 import os
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 class Node(ABC):
     repo_url = "https://github.com/JamesLiu12/PPaxos"
@@ -9,6 +10,7 @@ class Node(ABC):
     working_dir = os.path.join(repo_path, "swiftpaxos")
     nfs_server_path = "/exports/paxos"
     nfs_client_path = "/mnt/nfs/paxos"
+    start_time = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     
     def __init__(self, address: str, user: str, identity_file: str, config_path: str):
         self.address = address

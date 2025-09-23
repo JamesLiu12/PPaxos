@@ -11,6 +11,6 @@ if __name__ == "__main__":
         node.run_cmds([
             "sudo apt-get update -y",
             "sudo apt-get install -y nfs-common",
-            "sudo mkdir -p /mnt/nfs/paxos",
+            f"sudo mkdir -p {Node.nfs_client_path}",
             f"sudo mount {master.address}:{Node.nfs_server_path} {Node.nfs_client_path}"
             ])
