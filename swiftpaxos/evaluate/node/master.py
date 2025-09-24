@@ -2,9 +2,8 @@ from .node import Node
 import os
 
 class Master(Node):
-    def __init__(self, address: str, user: str, identity_file: str, config_path: str, protocol: str = "paxos"):
-        super().__init__(address, user, identity_file, config_path)
-        self.protocol = protocol
+    def __init__(self, address: str, user: str, identity_file: str, config_path: str, protocol: str):
+        super().__init__(address, user, identity_file, config_path, protocol)
 
     def run(self):
         return self.run_cmd(f"{os.path.join(Node.working_dir, 'swiftpaxos')}", 

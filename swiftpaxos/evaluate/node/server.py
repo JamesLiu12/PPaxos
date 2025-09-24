@@ -2,10 +2,9 @@ from .node import Node
 import os
 
 class Server(Node):
-    def __init__(self, address: str, user: str, identity_file: str, config_path: str, alias: str, protocol: str = "paxos"):
-        super().__init__(address, user, identity_file, config_path)
+    def __init__(self, address: str, user: str, identity_file: str, config_path: str, protocol: str, alias: str):
+        super().__init__(address, user, identity_file, config_path, protocol)
         self.alias = alias
-        self.protocol = protocol
 
     def run(self):
         log_dir = os.path.join(Node.nfs_client_path, Node.test_name, self.protocol)

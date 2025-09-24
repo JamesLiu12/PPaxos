@@ -16,6 +16,7 @@ class ConfigLoader:
         Node.nfs_server_path = config["nfs_server_path"]
         Node.nfs_client_path = config["nfs_client_path"]
         Node.test_name = config["test_name"]
+        protocol = config["protocol"]
 
         master_conf = config["master"]
         self.master = Master(
@@ -23,7 +24,7 @@ class ConfigLoader:
             master_conf["user"],
             master_conf["identity_file"],
             master_conf["config_path"],
-            master_conf.get("protocol", "paxos")
+            protocol
         )
 
         server_conf = config["servers"]
@@ -33,8 +34,8 @@ class ConfigLoader:
                 server_conf["user"],
                 server_conf["identity_file"],
                 server_conf["config_path"],
+                protocol,
                 server_conf["alias"],
-                server_conf.get("protocol", "paxos")
             ) for server_conf in config["servers"]
         ]
 
@@ -45,8 +46,8 @@ class ConfigLoader:
                 client_conf["user"],
                 client_conf["identity_file"],
                 client_conf["config_path"],
+                protocol,
                 client_conf["alias"],
-                client_conf.get("protocol", "paxos")
             ) for client_conf in config["clients"]
         ]
 

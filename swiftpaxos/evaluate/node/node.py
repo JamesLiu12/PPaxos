@@ -11,12 +11,13 @@ class Node(ABC):
     nfs_client_path = "/mnt/nfs/paxos"
     test_name = "1"
     
-    def __init__(self, address: str, user: str, identity_file: str, config_path: str):
+    def __init__(self, address: str, user: str, identity_file: str, config_path: str, protocol: str):
         self.address = address
         self.user = user
         self.identity_file = identity_file
         self.config_path = os.path.join(Node.working_dir, config_path)
-        
+        self.protocol = protocol
+
     def ssh_cmd(self, *remote_cmd) -> List[str]:
         cmd = [
             "ssh",
