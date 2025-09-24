@@ -22,7 +22,7 @@ servers:
     user: "ubuntu"
     identity_file: "~/roxwell.pem"
     config_path: "local.conf"
-    alias: "server-2"
+    alias: "server-3"
     protocol: "paxos"
 
 clients:
@@ -35,12 +35,12 @@ clients:
     user: "ubuntu"
     identity_file: "~/roxwell.pem"
     config_path: "local.conf"
-    alias: "client-1"
+    alias: "client-2"
   - address: "ec2-16-162-217-223.ap-east-1.compute.amazonaws.com"
     user: "ubuntu"
     identity_file: "~/roxwell.pem"
     config_path: "local.conf"
-    alias: "client-1"
+    alias: "client-3"
 
 repo_url: "https://github.com/JamesLiu12/PPaxos"
 repo_path: "~/PPaxos/"
