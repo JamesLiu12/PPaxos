@@ -3,7 +3,7 @@ master:
   user: "ubuntu"
   identity_file: "~/roxwell.pem"
   config_path: "local.conf"
-  protocol: "epaxos"
+  protocol: "paxos"
 
 servers:
   - address: "ec2-54-46-70-75.ap-east-1.compute.amazonaws.com"
@@ -11,19 +11,19 @@ servers:
     identity_file: "~/roxwell.pem"
     config_path: "local.conf"
     alias: "server-1"
-    protocol: "epaxos"
+    protocol: "paxos"
   - address: "ec2-95-40-94-209.ap-east-1.compute.amazonaws.com"
     user: "ubuntu"
     identity_file: "~/roxwell.pem"
     config_path: "local.conf"
     alias: "server-2"
-    protocol: "epaxos"
+    protocol: "paxos"
   - address: "ec2-43-199-71-207.ap-east-1.compute.amazonaws.com"
     user: "ubuntu"
     identity_file: "~/roxwell.pem"
     config_path: "local.conf"
     alias: "server-3"
-    protocol: "epaxos"
+    protocol: "paxos"
 
 clients:
   - address: "ec2-54-46-77-0.ap-east-1.compute.amazonaws.com"
