@@ -5,7 +5,7 @@ import yaml
 from log_entry import LogEntry, dump_to_yaml
 
 nfs_path = '/exports/paxos'
-test_name = "1"
+test_name = "conflict-0"
 output_file = 'out/conflict0.yaml'
 
 result_dir = os.path.join(nfs_path, test_name)
