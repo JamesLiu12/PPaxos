@@ -1,5 +1,5 @@
-from node import Master
-from config_loader import ConfigLoader
+from evaluate.node import Master
+from .config_loader import ConfigLoader
 
 if __name__ == "__main__":
     config_loader = ConfigLoader()

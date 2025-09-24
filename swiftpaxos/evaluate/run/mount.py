@@ -1,5 +1,5 @@
-from node import *
-from config_loader import ConfigLoader
+from evaluate.node import *
+from .config_loader import ConfigLoader
 from typing import List
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
-from node import Node
+from evaluate.node import Node
 import threading
 from typing import List, Dict
-from config_loader import ConfigLoader
+from .config_loader import ConfigLoader
 
 def run_node(node: Node):
     node.kill()

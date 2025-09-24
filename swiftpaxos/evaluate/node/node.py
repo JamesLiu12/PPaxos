@@ -42,6 +42,12 @@ class Node(ABC):
         clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} {Node.repo_path} && cd {Node.working_dir} && go build -buildvcs=false")
         return subprocess.run(clone_cmd)
     
+    def init_go(self):
+        return self.run_cmds([
+            "sudo apt-get update -y",
+            "sudo apt-get install -y golang-go",
+            ])
+    
     @abstractmethod
     def run():
         pass

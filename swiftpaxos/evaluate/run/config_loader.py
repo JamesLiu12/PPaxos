@@ -1,4 +1,4 @@
-from node import *
+from evaluate.node import *
 from typing import List, Dict
 import yaml
 
