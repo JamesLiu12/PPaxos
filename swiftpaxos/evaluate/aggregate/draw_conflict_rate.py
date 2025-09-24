@@ -1,4 +1,4 @@
-from log_entry import LogEntry, load_from_yaml
+from .log_entry import LogEntry, load_from_yaml
 from typing import List, Dict
 from datetime import datetime
 

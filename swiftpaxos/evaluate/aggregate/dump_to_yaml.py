@@ -2,7 +2,7 @@ import re
 import os
 from typing import List, Dict, Any
 import yaml
-from log_entry import LogEntry, dump_to_yaml
+from .log_entry import LogEntry, dump_to_yaml
 
 nfs_path = '/exports/paxos'
 test_name = "conflict-0"
