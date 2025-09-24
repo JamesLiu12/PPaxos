@@ -45,7 +45,8 @@ class ConfigLoader:
                 client_conf["user"],
                 client_conf["identity_file"],
                 client_conf["config_path"],
-                client_conf["alias"]
+                client_conf["alias"],
+                server_conf.get("protocol", "paxos")
             ) for client_conf in config["clients"]
         ]
 
