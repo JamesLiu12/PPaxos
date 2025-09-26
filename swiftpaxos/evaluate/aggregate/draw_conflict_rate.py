@@ -1,17 +1,20 @@
 from .log_entry import LogEntry, load_from_yaml
-from typing import List, Dict
+from typing import List, Dict, Optional
 from datetime import datetime
 import matplotlib.pyplot as plt
 
 # Unit: message / sec
-def cal_throughput(entries: List[LogEntry]) -> float:
+def cal_throughput(entries: List[LogEntry]) -> Optional[float]:
     entries.sort(key=lambda e: (e.date, e.time))
     to_dt = lambda e: datetime.strptime(f"{e.date} {e.time}", "%Y/%m/%d %H:%M:%S")
 
     first_time = to_dt(entries[0])
     last_time  = to_dt(entries[-1])
 
-    duration = (last_time - first_time).total_seconds()
+    duration = (last_time - first_time).total_seconds() + entries[-1].rtt * 0.001
+
+    if duration < 1e-6:
+        return None
     
     return len(entries) / duration
 
@@ -40,8 +43,11 @@ for data_file in data_files:
     for proto, clients in data.items():
         throughputs[proto] = {}
         for client, entries in clients.items():
-            throughputs[proto][client] = cal_throughput(entries)
-            print(f'[{proto}] [{client}] troughput: {throughputs[proto][client]}')
+            print(client)
+            throughput = cal_throughput(entries)
+            if throughput: 
+                throughputs[proto][client] = throughput
+                print(f'[{proto}] [{client}] troughput: {throughputs[proto][client]}')
 
     speedups: Dict[str, Dict[str, float]] = {}
 
