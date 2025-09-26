@@ -7,7 +7,7 @@ import yaml
 class LogEntry:
     date: str
     time: str
-    rtt: str
+    rtt: float
 
 def dump_to_yaml(data: Dict[str, Dict[str, List[LogEntry]]], path: str):
     serializable: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
@@ -36,7 +36,7 @@ def load_from_yaml(path: str) -> Dict[str, Dict[str, List[LogEntry]]]:
                         LogEntry(
                             date=item.get('date', ''),
                             time=item.get('time', ''),
-                            rtt=item.get('rtt', ''),
+                            rtt=float(item.get('rtt', '')),
                         )
                     )
             result[proto][client] = restored

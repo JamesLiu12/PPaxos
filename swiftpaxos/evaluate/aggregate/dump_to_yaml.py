@@ -20,7 +20,7 @@ def parse_log_to_entry(line: str) -> LogEntry | None:
     date, t, rtt = parts
     if not (is_date(date) and is_time(t) and is_float(rtt)):
         return None
-    return LogEntry(date=date, time=t, rtt=rtt)
+    return LogEntry(date=date, time=t, rtt=float(rtt))
 
 def traverse_results(result_dir: str):
     if not os.path.isdir(result_dir):

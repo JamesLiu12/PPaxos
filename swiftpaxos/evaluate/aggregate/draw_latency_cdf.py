@@ -3,36 +3,15 @@ from typing import List, Dict, Optional
 from datetime import datetime
 import matplotlib.pyplot as plt
 
-# Unit: message / sec
-def cal_throughput(entries: List[LogEntry]) -> Optional[float]:
+# Unit: ms
+def cal_latency(entries: List[LogEntry]) -> Optional[float]:
     if not entries:
         return None
     
-    entries.sort(key=lambda e: (e.date, e.time))
-    to_dt = lambda e: datetime.strptime(f"{e.date} {e.time}", "%Y/%m/%d %H:%M:%S")
-
-    first_time = to_dt(entries[0])
-    last_time  = to_dt(entries[-1])
-
-    duration = (last_time - first_time).total_seconds() + entries[-1].rtt * 0.001
-
-    if abs(duration) < 1e-6:
-        return None
-    
-    return len(entries) / duration
-
-def cal_speedup_avg(speedups: Dict[str, float]) -> float:
-    vals = speedups.values()
-    return sum(vals) / len(speedups)
-
-def cal_speedup_max(speedups: Dict[str, float]) -> float:
-    return max(speedups.values())
-
-def cal_speedup_min(speedups: Dict[str, float]) -> float:
-    return min(speedups.values())
+    return sum(e.rtt for e in entries) / len(entries)
 
 conflict_rates: List[int] = []
-speedups_conflict: Dict[int, Dict[str, Dict[str, float]]] = {}  
+speedups_conflict: Dict[int, Dict[str, Dict[str, float]]] = {}
 
 data_files = [f'out/conflict{i * 10}.yaml' for i in range(1)]
 
@@ -41,27 +20,17 @@ conflict = 0
 for data_file in data_files:
     data = load_from_yaml(data_file)
 
-    throughputs: Dict[str, Dict[str, float]] = {}
+    latencies: Dict[str, Dict[str, float]] = {}
 
     for proto, clients in data.items():
-        throughputs[proto] = {}
+        latencies[proto] = {}
         for client, entries in clients.items():
-            throughput = cal_throughput(entries)
-            if throughput: 
-                throughputs[proto][client] = throughput
-                print(f'[{proto}] [{client}] troughput: {throughputs[proto][client]}')
-
-    speedups: Dict[str, Dict[str, float]] = {}
-
-    for proto, clients in throughputs.items():
-        speedups[proto] = {}
-        
-        for client, throughput in clients.items():
-            speedups[proto][client] = throughputs[proto][client] / throughputs['paxos'][client]
-            print(f'[{proto}] [{client}] speedup: {speedups[proto][client]}')
+            latency = cal_latency(entries)
+            if latency: 
+                latencies[proto][client] = latency
+                print(f'[{proto}] [{client}] troughput: {latencies[proto][client]}')
 
     conflict_rates.append(conflict)
-    speedups_conflict[conflict] = speedups
     conflict += 10
 
 all_protos = set()
