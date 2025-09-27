@@ -1,87 +1,26 @@
-from .log_entry import LogEntry, load_from_yaml
-from typing import List, Dict, Optional
-from datetime import datetime
+from typing import Dict, List
+import yaml
 import matplotlib.pyplot as plt
 
-# Unit: message / sec
-def cal_throughput(entries: List[LogEntry]) -> Optional[float]:
-    if not entries:
-        return None
-    
-    entries.sort(key=lambda e: (e.date, e.time))
-    to_dt = lambda e: datetime.strptime(f"{e.date} {e.time}", "%Y/%m/%d %H:%M:%S")
-
-    first_time = to_dt(entries[0])
-    last_time  = to_dt(entries[-1])
-
-    duration = (last_time - first_time).total_seconds() + entries[-1].rtt * 0.001
-
-    if abs(duration) < 1e-6:
-        return None
-    
-    return len(entries) / duration
-
-def cal_speedup_avg(speedups: Dict[str, float]) -> float:
-    vals = speedups.values()
-    return sum(vals) / len(speedups)
-
-def cal_speedup_max(speedups: Dict[str, float]) -> float:
-    return max(speedups.values())
-
-def cal_speedup_min(speedups: Dict[str, float]) -> float:
-    return min(speedups.values())
-
-conflict_rates: List[int] = []
-speedups_conflict: Dict[int, Dict[str, Dict[str, float]]] = {}  
-
-data_files = [f'out/conflict{i * 10}.yaml' for i in range(1)]
-
-conflict = 0
-
-for data_file in data_files:
-    data = load_from_yaml(data_file)
-
-    throughputs: Dict[str, Dict[str, float]] = {}
-
-    for proto, clients in data.items():
-        throughputs[proto] = {}
-        for client, entries in clients.items():
-            throughput = cal_throughput(entries)
-            if throughput: 
-                throughputs[proto][client] = throughput
-                print(f'[{proto}] [{client}] troughput: {throughputs[proto][client]}')
-
-    speedups: Dict[str, Dict[str, float]] = {}
-
-    for proto, clients in throughputs.items():
-        speedups[proto] = {}
-        
-        for client, throughput in clients.items():
-            speedups[proto][client] = throughputs[proto][client] / throughputs['paxos'][client]
-            print(f'[{proto}] [{client}] speedup: {speedups[proto][client]}')
-
-    conflict_rates.append(conflict)
-    speedups_conflict[conflict] = speedups
-    conflict += 10
+with open('out/conflict_proto_speedup.yaml', 'r', encoding='utf-8') as f:
+    conflict_proto_speedup: Dict[int, Dict[str, Dict[str, float]]] = yaml.safe_load(f) or {}
 
 all_protos = set()
-for c in speedups_conflict.values():
+for c in conflict_proto_speedup.values():
     all_protos.update(c.keys())
-all_protos = sorted(all_protos)
 
 series_avg: Dict[str, List[float]] = {p: [] for p in all_protos}
 series_max: Dict[str, List[float]] = {p: [] for p in all_protos}
 series_min: Dict[str, List[float]] = {p: [] for p in all_protos}
 
-conflict_rates_sorted = sorted(speedups_conflict.keys())
+conflict_rates = []
 
-for cr in conflict_rates_sorted:
-    per_proto = speedups_conflict[cr]  # {proto: {client: speedup}}
-    for p in all_protos:
-        d = per_proto.get(p, {})
-        series_avg[p].append(cal_speedup_avg(d))
-        series_max[p].append(cal_speedup_max(d))
-        series_min[p].append(cal_speedup_min(d))
+for cr, proto_speedup in conflict_proto_speedup.items():
+    conflict_rates.append(cr)
+    for p, speedup in proto_speedup.items():
+        series_avg[p].append(speedup['avg'])
+        series_max[p].append(speedup['max'])
+        series_min[p].append(speedup['min'])
 
 fig, axes = plt.subplots(3, 1, sharex=True)
 
@@ -107,7 +46,7 @@ def plot_panel(ax, title, data_dict):
     for p in all_protos:
         ys = data_dict[p]
         style = proto_style.get(p, dict(marker="o", linestyle="-"))
-        ax.plot(conflict_rates_sorted, ys, label=p, **style)
+        ax.plot(conflict_rates, ys, label=p, **style)
     ax.set_ylim(*y_limits[titles.index(title)])
     ax.set_ylabel(y_label)
     ax.set_title(title)
