@@ -1,36 +1,13 @@
-from typing import Dict, List
+from typing import Dict
 import yaml
 import matplotlib.pyplot as plt
 
-with open('out/conflict_proto_speedup.yaml', 'r', encoding='utf-8') as f:
-    conflict_proto_speedup: Dict[int, Dict[str, Dict[str, float]]] = yaml.safe_load(f) or {}
+with open('out/proto_conflict_speedup.yaml', 'r', encoding='utf-8') as f:
+    proto_conflict_speedup: Dict[str, Dict[str | int, float]] = yaml.safe_load(f) or {}
 
-all_protos = set()
-for c in conflict_proto_speedup.values():
-    all_protos.update(c.keys())
-
-series_avg: Dict[str, List[float]] = {p: [] for p in all_protos}
-series_max: Dict[str, List[float]] = {p: [] for p in all_protos}
-series_min: Dict[str, List[float]] = {p: [] for p in all_protos}
-
-conflict_rates = []
-
-for cr, proto_speedup in conflict_proto_speedup.items():
-    conflict_rates.append(cr)
-    for p, speedup in proto_speedup.items():
-        series_avg[p].append(speedup['avg'])
-        series_max[p].append(speedup['max'])
-        series_min[p].append(speedup['min'])
-
-fig, axes = plt.subplots(3, 1, sharex=True)
-
-titles = ["Average", "Best", "Worst"]
-y_limits = [(0.9, 2.0), (0.9, 2.0), (0.9, 2.0)]
-y_label = "speedup"
-
-axes[-1].set_xticks(list(range(0, 101, 20)))
-for ax in axes:
-    ax.set_xlim(0, 100)
+all_conflict_rates = sorted({
+    int(cr) for proto_speedup in proto_conflict_speedup.values() for cr in proto_speedup.keys()
+})
 
 proto_style = {
     "SwiftPaxos": dict(color="#F39C12", marker="x", linestyle="-", linewidth=2),
@@ -42,23 +19,29 @@ proto_style = {
     "paxos":      dict(color="#000000", marker="o", linestyle="-", linewidth=1.5),
 }
 
-def plot_panel(ax, title, data_dict):
-    for p in all_protos:
-        ys = data_dict[p]
-        style = proto_style.get(p, dict(marker="o", linestyle="-"))
-        ax.plot(conflict_rates, ys, label=p, **style)
-    ax.set_ylim(*y_limits[titles.index(title)])
-    ax.set_ylabel(y_label)
-    ax.set_title(title)
-    ax.grid(True, linestyle=":", alpha=0.4)
+fig, ax = plt.subplots(1, 1, figsize=(6.5, 4.0))
 
-plot_panel(axes[0], "Average", series_avg)
-plot_panel(axes[1], "Best",    series_max)
-plot_panel(axes[2], "Worst",   series_min)
+for proto, cr_map in proto_conflict_speedup.items():
+    ys = []
+    for cr in all_conflict_rates:
+        val = cr_map.get(cr, cr_map.get(str(cr)))
+        ys.append(val if val is not None else None)
 
-axes[-1].set_xlabel("conflict rate (%)")
+    style = proto_style.get(proto, dict(marker="o", linestyle="-"))
+    ax.plot(all_conflict_rates, ys, label=proto, **style)
 
-axes[0].legend(ncol=3, loc="upper left", fontsize=9, frameon=False)
+ax.set_xlim(min(all_conflict_rates), max(all_conflict_rates))
+ax.set_xlabel("conflict rate (%)")
+ax.set_ylabel("speedup")
+ax.set_title("Speedup vs Conflict Rate")
+ax.grid(True, linestyle=":", alpha=0.4)
+
+if all_conflict_rates and (min(all_conflict_rates) >= 0 and max(all_conflict_rates) <= 100):
+    ax.set_xticks(list(range(0, 101, 20)))
+
+# ax.set_ylim(0.9, 2.0)
+
+ax.legend(ncol=3, loc="upper left", fontsize=9, frameon=False)
 
 plt.tight_layout()
-plt.savefig("out/speedup_panels.png", dpi=200, bbox_inches="tight")
+plt.savefig("out/speedup_vs_conflict.png", dpi=200, bbox_inches="tight")

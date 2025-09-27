@@ -25,13 +25,14 @@ def cal_speedup_avg(speedups: Dict[str, float]) -> float:
     vals = speedups.values()
     return sum(vals) / len(speedups)
 
-def cal_speedup_max(speedups: Dict[str, float]) -> float:
-    return max(speedups.values())
+# def cal_speedup_max(speedups: Dict[str, float]) -> float:
+#     return max(speedups.values())
 
-def cal_speedup_min(speedups: Dict[str, float]) -> float:
-    return min(speedups.values())
+# def cal_speedup_min(speedups: Dict[str, float]) -> float:
+#     return min(speedups.values())
 
-conflict_proto_speedup: Dict[int, Dict[str, Dict[str, float]]] = {}  
+# conflict_proto_speedup: Dict[int, Dict[str, Dict[str, float]]] = {}
+conflict_proto_speedup: Dict[int, Dict[str, float]] = {}
 
 data_files = [f'out/conflict{i * 10}.yaml' for i in range(1)]
 
@@ -53,18 +54,25 @@ for data_file in data_files:
     conflict_proto_speedup[conflict] = {}
 
     for proto, clients in throughputs.items():
-        conflict_proto_speedup[conflict][proto] = {}
+        # conflict_proto_speedup[conflict][proto] = {}
         client_speedups: Dict[str, float] = {}
         
         for client, throughput in clients.items():
             client_speedups[client] = throughputs[proto][client] / throughputs['paxos'][client]
             print(f'[{proto}] [{client}] speedup: {client_speedups[client]}')
 
-        conflict_proto_speedup[conflict][proto]['avg'] = cal_speedup_avg(client_speedups)
-        conflict_proto_speedup[conflict][proto]['max'] = cal_speedup_max(client_speedups)
-        conflict_proto_speedup[conflict][proto]['min'] = cal_speedup_min(client_speedups)
+        # conflict_proto_speedup[conflict][proto]['avg'] = cal_speedup_avg(client_speedups)
+        # conflict_proto_speedup[conflict][proto]['max'] = cal_speedup_max(client_speedups)
+        # conflict_proto_speedup[conflict][proto]['min'] = cal_speedup_min(client_speedups)
+        conflict_proto_speedup[conflict][proto] = cal_speedup_avg(client_speedups)
 
     conflict += 10
 
-with open('out/conflict_proto_speedup.yaml', 'w', encoding='utf-8') as f:
-    yaml.safe_dump(conflict_proto_speedup, f, sort_keys=False)
+proto_conflict_speedup: Dict[str, Dict[int, float]] = {}
+
+for conflict, proto_speedup in conflict_proto_speedup.items():
+    for proto, speedup in proto_speedup.items():
+        proto_conflict_speedup.setdefault(proto, {})[conflict] = speedup
+
+with open('out/proto_conflict_speedup.yaml', 'w', encoding='utf-8') as f:
+    yaml.safe_dump(proto_conflict_speedup, f, sort_keys=False)
