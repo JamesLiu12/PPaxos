@@ -1,5 +1,5 @@
 master:
-  address: "ec2-95-40-97-183.ap-east-1.compute.amazonaws.com"
+  address: "ec2-54-46-49-81.ap-east-1.compute.amazonaws.com"
   user: "ubuntu"
   identity_file: "~/pem/m/roxwell.pem"
   config_path: "local.conf"

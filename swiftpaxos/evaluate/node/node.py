@@ -26,7 +26,7 @@ class Node(ABC):
             f"{self.user}@{self.address}",
             *remote_cmd
         ]
-        print(cmd)
+        print(" ".join(cmd))
         return cmd
     
     def run_cmd(self, *remote_cmd):
