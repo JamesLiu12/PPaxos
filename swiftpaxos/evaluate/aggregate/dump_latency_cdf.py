@@ -1,5 +1,5 @@
 from .log_entry import LogEntry, load_from_yaml
-from typing import List, Dict, Optional
+from typing import List, Dict, Tuple
 from datetime import datetime
 import yaml
 
@@ -20,7 +20,7 @@ for data_file in data_files:
 
     conflict += 10
 
-proto_latency_cdf: Dict[str, List[tuple]] = {}
+proto_latency_cdf: Dict[str, List[Tuple[float, float]]] = {}
 
 for proto, latencies in proto_latencies.items():
     latencies = sorted(latencies)
