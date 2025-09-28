@@ -25,6 +25,7 @@ class Server(Node):
         self.run_cmds([
             "sudo apt-get update -y",
             "sudo apt-get install -y nfs-common",
+            f"sudo umount -f -l {Node.nfs_client_path}",
             f"sudo mkdir -p {Node.nfs_client_path}",
             f"sudo mount {master_address}:{Node.nfs_server_path} {Node.nfs_client_path}"
             ])
