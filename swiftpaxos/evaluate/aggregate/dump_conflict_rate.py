@@ -58,8 +58,9 @@ for data_file in data_files:
         client_speedups: Dict[str, float] = {}
         
         for client, throughput in clients.items():
-            client_speedups[client] = throughputs[proto][client] / throughputs['paxos'][client]
-            print(f'[{proto}] [{client}] speedup: {client_speedups[client]}')
+            if throughputs['paxos'][client]:
+                client_speedups[client] = throughputs[proto][client] / throughputs['paxos'][client]
+                print(f'[{proto}] [{client}] speedup: {client_speedups[client]}')
 
         # conflict_proto_speedup[conflict][proto]['avg'] = cal_speedup_avg(client_speedups)
         # conflict_proto_speedup[conflict][proto]['max'] = cal_speedup_max(client_speedups)

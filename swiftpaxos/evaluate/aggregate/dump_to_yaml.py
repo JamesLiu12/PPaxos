@@ -4,12 +4,6 @@ from typing import List, Dict, Any
 import yaml
 from .log_entry import LogEntry, dump_to_yaml
 
-nfs_path = '/exports/paxos'
-test_name = "conflict-0"
-output_file = 'out/conflict0.yaml'
-
-result_dir = os.path.join(nfs_path, test_name)
-
 # Protocol -> Client -> Logs
 result: Dict[str, Dict[str, List[LogEntry]]] = {}
 
@@ -71,6 +65,15 @@ def is_float(data: str):
     return bool(re.fullmatch(r'(?:\d+\.\d*|\.\d+)', data))
 
 if __name__ == '__main__':
-    traverse_results(result_dir)
-    dump_to_yaml(result, output_file)
-    print(f'YAML written to: {output_file}')
+    for i in range(11):
+        result = {}
+        conflict_rate = i * 10
+        nfs_path = '/exports/paxos'
+        test_name = f'conflict-{i}'
+        output_file = f'out/conflict{i}.yaml'
+
+        result_dir = os.path.join(nfs_path, test_name)
+
+        traverse_results(result_dir)
+        dump_to_yaml(result, output_file)
+        print(f'YAML written to: {output_file}')
