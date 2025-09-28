@@ -58,7 +58,7 @@ for data_file in data_files:
         client_speedups: Dict[str, float] = {}
         
         for client, throughput in clients.items():
-            if throughputs['paxos'][client]:
+            if client in throughputs['paxos']:
                 client_speedups[client] = throughputs[proto][client] / throughputs['paxos'][client]
                 print(f'[{proto}] [{client}] speedup: {client_speedups[client]}')
 
