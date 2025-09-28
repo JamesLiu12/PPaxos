@@ -6,10 +6,15 @@ class Master(Node):
         super().__init__(address, user, identity_file, config_path, protocol)
 
     def run(self):
+        log_dir = os.path.join(Node.nfs_server_path, Node.test_name, self.protocol)
+        log_file = os.path.join(log_dir, 'master')
+        self.run_cmd(f"mkdir -p {log_dir}")
+        self.run_cmd(f"touch {log_file}")
         return self.run_cmd(f"{os.path.join(Node.working_dir, 'swiftpaxos')}", 
                             "-run master", 
                             f"-config {self.config_path}", 
-                            f"-protocol {self.protocol}")
+                            f"-protocol {self.protocol}",
+                            f"-log {os.path.join(Node.nfs_server_path, Node.test_name, self.protocol, 'master')}")
     def set_up_nfs(self):
         self.run_cmds([
         "sudo apt-get update -y",
