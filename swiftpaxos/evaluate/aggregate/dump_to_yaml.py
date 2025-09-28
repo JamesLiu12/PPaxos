@@ -69,8 +69,8 @@ if __name__ == '__main__':
         result = {}
         conflict_rate = i * 10
         nfs_path = '/exports/paxos'
-        test_name = f'conflict-{i}'
-        output_file = f'out/conflict{i}.yaml'
+        test_name = f'conflict-{conflict_rate}'
+        output_file = f'out/conflict{conflict_rate}.yaml'
 
         result_dir = os.path.join(nfs_path, test_name)
 
