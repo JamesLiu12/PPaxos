@@ -34,7 +34,7 @@ def cal_speedup_avg(speedups: Dict[str, float]) -> float:
 # conflict_proto_speedup: Dict[int, Dict[str, Dict[str, float]]] = {}
 conflict_proto_speedup: Dict[int, Dict[str, float]] = {}
 
-data_files = [f'out/conflict{i * 10}.yaml' for i in range(10)]
+data_files = [f'out/conflict{i * 10}.yaml' for i in range(11)]
 
 conflict = 0
 

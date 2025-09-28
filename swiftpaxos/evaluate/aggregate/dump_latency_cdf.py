@@ -5,7 +5,7 @@ import yaml
 
 proto_latencies: Dict[str, List[float]] = {}
 
-data_files = [f'out/conflict{i * 10}.yaml' for i in range(10)]
+data_files = [f'out/conflict{i * 10}.yaml' for i in range(11)]
 
 conflict = 0
 

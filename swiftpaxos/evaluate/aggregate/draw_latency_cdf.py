@@ -104,7 +104,7 @@ if __name__ == "__main__":
         cdf_data="out/proto_latency_cdf.yaml",
         out_path="out/latency_cdf.png",
         title="",
-        # xlim=(50, 400),
+        xlim=(0, 5000),
         # xticks=list(range(100, 401, 50)),
         # vlines=[(200, "SLO 200ms"), (250, "Budget")],
         legend_loc="lower right",
