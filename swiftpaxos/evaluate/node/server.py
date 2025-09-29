@@ -19,9 +19,6 @@ class Server(Node):
                             f"-protocol {self.protocol}",
                             f"-log {os.path.join(Node.nfs_client_path, Node.test_name, self.protocol, self.alias)}")
     
-    def kill(self):
-        return self.run_cmd("pkill -f swiftpaxos")
-    
     def mount(self, master_address: str):
         self.run_cmds([
             "sudo apt-get update -y",

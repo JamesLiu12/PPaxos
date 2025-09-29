@@ -28,6 +28,3 @@ class Master(Node):
         "sudo exportfs -ra",
         "sudo systemctl restart nfs-kernel-server"
         ])
-    
-    def kill(self):
-        return self.run_cmd("pkill -f swiftpaxos")

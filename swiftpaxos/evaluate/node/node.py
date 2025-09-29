@@ -57,10 +57,14 @@ class Node(ABC):
             "sudo apt-get install -y golang-go",
             ])
     
-    @abstractmethod
-    def run():
-        pass
+    def is_running(self) -> bool:
+        check_cmd = self.ssh_cmd("pgrep swiftpaxos")
+        result = subprocess.run(check_cmd, capture_output=True)
+        return result.returncode == 0
+
+    def kill(self):
+        return self.run_cmd("pkill -f swiftpaxos")
 
     @abstractmethod
-    def kill():
+    def run():
         pass
