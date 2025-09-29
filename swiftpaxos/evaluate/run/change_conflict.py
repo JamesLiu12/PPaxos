@@ -11,9 +11,10 @@ def change_conflict(conflict_value):
     Args:
         c: Conflict value
     """    
-    # Update local.conf
-    local_conf_path = os.path.join(Node.working_dir, 'local.conf')
-    config_yaml_path = os.path.join(Node.working_dir, 'evaluate', 'config.yaml')
+    ConfigLoader()
+    working_dir = os.path.expanduser(Node.working_dir)
+    local_conf_path = os.path.join(working_dir, 'local.conf')
+    config_yaml_path = os.path.join(working_dir, 'evaluate', 'config.yaml')
 
     try:
         with open(local_conf_path, 'r') as f:
@@ -22,7 +23,7 @@ def change_conflict(conflict_value):
         # Find and replace the line starting with 'conflicts:'
         for i, line in enumerate(lines):
             if line.strip().startswith('conflicts:'):
-                lines[i] = f'conflicts: {conflict_value}\n'
+                lines[i] = f'conflicts:   {conflict_value}\n'
                 break
         
         # Write back to local.conf
