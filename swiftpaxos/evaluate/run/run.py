@@ -8,6 +8,7 @@ def run_node(node: Node):
     node.kill()
     node.init_repo()
     node.run()
+    print('Node ran')
 
 def check_status(node: Node):
     while True:
@@ -33,6 +34,8 @@ if __name__ == "__main__":
     for t in threads:
         t.join()
 
+    print("All started")
+
     threads = []
 
     for client in config_loader.clients:
@@ -44,6 +47,8 @@ if __name__ == "__main__":
         t.join()
 
     nodes = [config_loader.master] + config_loader.master + config_loader.clients
+
+    print("All finished")
 
     threads = []
 
