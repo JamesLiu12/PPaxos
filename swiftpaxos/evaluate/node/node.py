@@ -60,6 +60,7 @@ class Node(ABC):
     def is_running(self) -> bool:
         check_cmd = self.ssh_cmd("pgrep swiftpaxos")
         result = subprocess.run(check_cmd, capture_output=True)
+        print(f'returncode: {result.returncode}')
         return result.returncode == 0
 
     def kill(self):
