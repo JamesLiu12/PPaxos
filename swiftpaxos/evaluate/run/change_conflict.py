@@ -1,6 +1,6 @@
 import sys
 import yaml
-import config_loader
+from .config_loader import ConfigLoader
 from node import Node
 import os
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for c in {0..10}; do
+for c in {4..10}; do
     conflict=$((c * 10))
     python3 -m evaluate.run.change_conflict "$conflict"
     python3 -m evaluate.run.change_all "$conflict"
