@@ -46,7 +46,7 @@ if __name__ == "__main__":
     for t in threads:
         t.join()
 
-    nodes = [config_loader.master] + config_loader.master + config_loader.clients
+    nodes = [config_loader.master] + config_loader.servers + config_loader.clients
 
     print("All finished")
 

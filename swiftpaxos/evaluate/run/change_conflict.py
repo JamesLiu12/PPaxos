@@ -1,5 +1,8 @@
 import sys
 import yaml
+import config_loader
+from node import Node
+import os
 
 def change_conflict(c):
     """
@@ -11,8 +14,11 @@ def change_conflict(c):
     conflict_value = int(c) * 10
     
     # Update local.conf
+    local_conf_path = os.path.join(Node.working_dir, 'local.conf')
+    config_yaml_path = os.path.join(Node.working_dir, 'evaluate', 'config.yaml')
+
     try:
-        with open('./local.conf', 'r') as f:
+        with open(local_conf_path, 'r') as f:
             lines = f.readlines()
         
         # Find and replace the line starting with 'conflicts:'
@@ -22,13 +28,13 @@ def change_conflict(c):
                 break
         
         # Write back to local.conf
-        with open('./local.conf', 'w') as f:
+        with open(local_conf_path, 'w') as f:
             f.writelines(lines)
         
         print(f"Updated local.conf - conflicts: {conflict_value}")
         
     except FileNotFoundError:
-        print("Error: ./local.conf not found")
+        print(f"Error: {local_conf_path} not found")
         sys.exit(1)
     except Exception as e:
         print(f"Error updating local.conf: {e}")
@@ -36,20 +42,20 @@ def change_conflict(c):
     
     # Update evaluate/config.yaml
     try:
-        with open('./evaluate/config.yaml', 'r') as f:
+        with open(config_yaml_path, 'r') as f:
             config = yaml.safe_load(f)
         
         # Update test_name
         config['test_name'] = f'conflict-{conflict_value}'
         
         # Write back to evaluate/config.yaml
-        with open('./evaluate/config.yaml', 'w') as f:
+        with open(config_yaml_path, 'w') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
         
         print(f"Updated evaluate/config.yaml - test_name: conflict-{conflict_value}")
         
     except FileNotFoundError:
-        print("Error: ./evaluate/config.yaml not found")
+        print(f"Error: {local_conf_path} not found")
         sys.exit(1)
     except Exception as e:
         print(f"Error updating evaluate/config.yaml: {e}")
