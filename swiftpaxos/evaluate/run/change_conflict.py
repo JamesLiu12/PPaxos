@@ -1,7 +1,7 @@
 import sys
 import yaml
 from .config_loader import ConfigLoader
-from node import Node
+from evaluate.node import Node
 import os
 
 def change_conflict(conflict_value):
