@@ -12,7 +12,7 @@ def run_node(node: Node):
 
 def check_status(node: Node):
     while True:
-        time.sleep(60)
+        time.sleep(600)
         if not node.is_running():
             return
 
