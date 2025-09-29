@@ -1,0 +1,30 @@
+from evaluate.node import Node
+import threading
+from typing import List, Dict
+from .config_loader import ConfigLoader
+import time
+import sys
+
+def change_conflict_rate_node(node: Node, conflict_rate: int):
+    node.change_conflict(conflict_rate)
+
+if __name__ == "__main__":
+    config_loader = ConfigLoader()
+
+    c = sys.argv[1]
+    conflict_rate = int(c)
+
+    threads: List[threading.Thread] = []
+    # Master
+    threads.append(threading.Thread(target=change_conflict_rate_node, args=(config_loader.master, conflict_rate,)))
+    # Servers
+    for server in config_loader.servers:
+        threads.append(threading.Thread(target=change_conflict_rate_node, args=(server, conflict_rate,)))
+    # Clients
+    for client in config_loader.clients:
+        threads.append(threading.Thread(target=change_conflict_rate_node, args=(client, conflict_rate,)))
+
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()

@@ -4,15 +4,13 @@ import config_loader
 from node import Node
 import os
 
-def change_conflict(c):
+def change_conflict(conflict_value):
     """
     Update conflict settings in local.conf and evaluate/config.yaml
     
     Args:
-        c: Input argument to calculate conflict value (c*10)
-    """
-    conflict_value = int(c) * 10
-    
+        c: Conflict value
+    """    
     # Update local.conf
     local_conf_path = os.path.join(Node.working_dir, 'local.conf')
     config_yaml_path = os.path.join(Node.working_dir, 'evaluate', 'config.yaml')
@@ -68,7 +66,7 @@ def main():
     
     try:
         c = sys.argv[1]
-        change_conflict(c)
+        change_conflict(int(c))
     except ValueError:
         print("Error: Argument must be a number")
         sys.exit(1)

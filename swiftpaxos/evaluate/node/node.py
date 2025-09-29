@@ -65,6 +65,14 @@ class Node(ABC):
 
     def kill(self):
         return self.run_cmd("pkill -f swiftpaxos")
+    
+    def change_conflict(self, conflict_value: int):
+        return self.run_cmds([
+            f"cd {Node.repo_path} && git reset",
+            f"cd {Node.repo_path} && git restore .",
+            f"cd {Node.repo_path} && git pull",
+            f"cd {self.working_dir} && python3 -m python3 -m evaluate.run.change_conflict {conflict_value}",
+        ])
 
     @abstractmethod
     def run():

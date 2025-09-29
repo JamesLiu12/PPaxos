@@ -1,7 +1,10 @@
 #!/bin/bash
 
 for c in {0..10}; do
-    python3 -m evaluate.run.change_conflict "$c"
+    conflict=$((c * 10))
+    python3 -m evaluate.run.change_conflict "$conflict"
+    python3 -m evaluate.run.change_all "$conflict"
     python3 -m evaluate.run.run
     python3 -m evaluate.run.kill_all
+
 done
