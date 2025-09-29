@@ -32,6 +32,14 @@ class Node(ABC):
     def run_cmd(self, *remote_cmd):
         return subprocess.run(self.ssh_cmd(*remote_cmd))
     
+    def run_cmd_async(self, *remote_cmd) -> subprocess.Popen:
+        return subprocess.Popen(
+            self.ssh_cmd(*remote_cmd),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL
+        )
+    
     def run_cmds(self, remote_cmds: List):
         return [self.run_cmd(cmd) for cmd in remote_cmds]
     
