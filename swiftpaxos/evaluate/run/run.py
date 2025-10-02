@@ -42,6 +42,7 @@ if __name__ == "__main__":
         threads.append(threading.Thread(target=check_status, args=(client,)))
 
     for t in threads:
+        time.sleep(3)
         t.start()
     for t in threads:
         t.join()
@@ -57,6 +58,5 @@ if __name__ == "__main__":
 
     for t in threads:
         t.start()
-        time.sleep(3)
     for t in threads:
         t.join()

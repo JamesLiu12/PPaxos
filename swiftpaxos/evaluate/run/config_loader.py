@@ -38,6 +38,7 @@ class ConfigLoader:
                 server_conf["alias"],
             ) for server_conf in config["servers"]
         ]
+        self.servers.sort(key=lambda n: n.alias)
 
         client_conf = config["clients"]
         self.clients = [
@@ -50,6 +51,7 @@ class ConfigLoader:
                 client_conf["alias"],
             ) for client_conf in config["clients"]
         ]
+        self.clients.sort(key=lambda n: n.alias)
 
     def _read_config(self, path) -> Dict:
         with open(path, 'r') as f:
