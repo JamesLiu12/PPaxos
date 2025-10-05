@@ -220,7 +220,8 @@ type Replica struct {
 	conflictMu  sync.RWMutex
 	committedMu sync.RWMutex
 	// batcher aggregates outgoing small RPCs (e.g., PreAcceptReply) per peer
-	batcher *Batcher
+	batcher  *Batcher
+	Waitlist map[instanceId][]*PreAcceptReply
 }
 
 type InstPair struct {
@@ -353,6 +354,7 @@ func New(alias string, id int, peerAddrList []string, exec, beacon, durable bool
 		sync.RWMutex{},
 		sync.RWMutex{},
 		nil,
+		make(map[instanceId][]*PreAcceptReply),
 	}
 
 	// initialize batcher with buffer 4096; free callbacks nil for now
@@ -624,7 +626,7 @@ func (r *Replica) updateCommitted(replica int32) {
 }
 
 func (r *Replica) updateConflicts(cmds []state.Command, replica int32, instance int32) {
-	//r.PrintDebug("updateConflicts", "replica", replica, "instance", instance, "seq", seq)
+	r.PrintDebug("updateConflicts", "replica", replica, "instance", instance)
 	r.conflictMu.Lock()
 	defer r.conflictMu.Unlock()
 	for i := 0; i < len(cmds); i++ {
@@ -686,7 +688,7 @@ func (r *Replica) updateAttributes(cmds []state.Command, deps [MaxN]int32, repli
 	return deps, changed
 }
 
-func (r *Replica) updatePriority(cmds []state.Command, deps [MaxN]int32, replica int32, instance int32) int32 {
+func (r *Replica) updatePriority(pareply *PreAcceptReply, cmds []state.Command, deps [MaxN]int32, replica int32, instance int32) (int32, bool) {
 	//r.PrintDebug("updatePriority", "deps", deps, "replica", replica, "instance", instance)
 	r.conflictMu.RLock()
 	defer r.conflictMu.RUnlock()
@@ -698,8 +700,8 @@ func (r *Replica) updatePriority(cmds []state.Command, deps [MaxN]int32, replica
 			if cmds[i].Op != state.GET {
 				d = dpair.last
 			}
-			//r.PrintDebug("updatePriority q", r.Id, "cmds", i, "key", cmds[i].K, "state.GET", state.GET, "dpair.last", dpair.last, "dpair.lastWrite", dpair.lastWrite, "d", d, "deps[q]", deps[r.Id])
-			if d > deps[r.Id] { //优先级更低
+			r.PrintDebug("updatePriority q", r.Id, "cmds", i, "key", cmds[i].K, "state.GET", state.GET, "dpair.last", dpair.last, "dpair.lastWrite", dpair.lastWrite, "d", d, "deps", deps)
+			if d > deps[r.Id] {
 				if r.InstanceSpace[r.Id][d].Deps[replica] >= instance {
 					continue
 				}
@@ -722,9 +724,14 @@ func (r *Replica) updatePriority(cmds []state.Command, deps [MaxN]int32, replica
 				for k := replica + 1; k < int32(r.N); k++ {
 					r.PrintDebug("333k", k, "r.InstanceSpace[r.Id][d].Deps[k]", r.InstanceSpace[r.Id][d].Deps[k], time.Now())
 					for j := deps[k] + 1; j <= r.InstanceSpace[r.Id][d].Deps[k]; j++ {
-						//r.PrintDebug("444k", k, "j", j)
+						r.PrintDebug("444k", k, "j", j)
+						if r.InstanceSpace[k][j] == nil || len(r.InstanceSpace[k][j].Cmds) == 0 {
+							r.PrintDebug("reach == false", "k", k, "j", j)
+							r.Waitlist[instanceId{k, j}] = append(r.Waitlist[instanceId{k, j}], pareply)
+							return deps[r.Id], false
+						}
 						for l := 0; l < len(r.InstanceSpace[k][j].Cmds); l++ {
-							//r.PrintDebug("555k", k, "j", j, "l", l, "r.InstanceSpace[k][j].Cmds[l].K", r.InstanceSpace[k][j].Cmds[l].K, "cmds[i].K", cmds[i].K, "r.InstanceSpace[k][j].Cmds[l].Op", r.InstanceSpace[k][j].Cmds[l].Op, "cmds[i].Op", cmds[i].Op)
+							r.PrintDebug("555k", k, "j", j, "l", l, "r.InstanceSpace[k][j].Cmds[l].Op", r.InstanceSpace[k][j].Cmds[l].Op, "cmds[i].Op", cmds[i].Op)
 							if r.InstanceSpace[k][j].Cmds[l].K == cmds[i].K {
 								if r.InstanceSpace[k][j].Cmds[l].Op != state.GET || cmds[i].Op != state.GET {
 									priority = false
@@ -743,7 +750,7 @@ func (r *Replica) updatePriority(cmds []state.Command, deps [MaxN]int32, replica
 			}
 		}
 	}
-	return deps[r.Id]
+	return deps[r.Id], true
 }
 
 /*
@@ -926,7 +933,6 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 	//r.PrintDebug("pareply", pareply)
 	inst := r.InstanceSpace[int32(pareply.Replica)][pareply.Instance]
 
-	r.PrintDebug("pareply.Deps", pareply.Deps)
 	if inst == nil {
 		//r.PrintDebug("inst == nil")
 		inst = r.newInstanceDefault(int32(pareply.Replica), pareply.Instance)
@@ -934,18 +940,26 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 	}
 
 	if len(pareply.Command) > 0 {
-		if pareply.Instance > r.crtInstance[int32(pareply.Replica)] {
-			r.crtInstance[int32(pareply.Replica)] = pareply.Instance
-		}
 
 		reply := &PreAcceptReply{
 			Replica:  pareply.Replica,
 			Instance: pareply.Instance,
 		}
 
+		CMDReach := true
+
 		if int32(pareply.Replica) > r.Id {
-			inst.Deps[r.Id] = r.updatePriority(pareply.Command, pareply.Deps, int32(pareply.Replica), pareply.Instance)
+			inst.Deps[r.Id], CMDReach = r.updatePriority(pareply, pareply.Command, pareply.Deps, int32(pareply.Replica), pareply.Instance)
+
 			reply.SenderDep = inst.Deps[r.Id]
+		}
+
+		if !CMDReach {
+			return
+		}
+
+		if pareply.Instance > r.crtInstance[int32(pareply.Replica)] {
+			r.crtInstance[int32(pareply.Replica)] = pareply.Instance
 		}
 
 		for i := 0; i < r.N; i++ {
@@ -957,6 +971,14 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 		inst.Cmds = pareply.Command
 		inst.Status = PREACCEPTED_EQ
 		r.updateConflicts(pareply.Command, int32(pareply.Replica), pareply.Instance)
+
+		waitlist := r.Waitlist[instanceId{int32(pareply.Replica), pareply.Instance}]
+		delete(r.Waitlist, instanceId{int32(pareply.Replica), pareply.Instance})
+		for _, w := range waitlist {
+			r.PrintDebug("handlePreAcceptReply waitlist", w)
+			r.PrintDebug("pareply.Deps", pareply.Deps, "pareply.Replica", pareply.Replica, "pareply.Instance", pareply.Instance)
+			r.handlePreAcceptReply(w)
+		}
 
 		//r.PrintDebug("sendPreAcceptReply")
 		//r.PrintDebug("reply", reply)
@@ -1013,7 +1035,7 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 	}
 
 	inst.reach[r.Id] = true
-	inst.reach[int32(pareply.Replica)] = true
+	inst.reach[pareply.Replica] = true
 	inst.reach[pareply.Sender] = true
 	if pareply.Sender < pareply.Replica {
 		inst.Deps[pareply.Sender] = pareply.SenderDep
@@ -1021,6 +1043,7 @@ func (r *Replica) handlePreAcceptReply(pareply *PreAcceptReply) {
 
 	r.PrintDebug("pareply.Sender", pareply.Sender)
 	r.PrintDebug("inst.reach", inst.reach)
+	r.PrintDebug("inst.Deps", inst.Deps)
 
 	if inst.Status >= COMMITTED || inst.Cmds == nil {
 		return
