@@ -73,6 +73,10 @@ class Node(ABC):
             f"cd {Node.repo_path} && git pull",
             f"cd {self.working_dir} && python3 -m evaluate.run.change_conflict {conflict_value}",
         ])
+    
+    @abstractmethod
+    def init_log(self):
+        pass
 
     @abstractmethod
     def run():

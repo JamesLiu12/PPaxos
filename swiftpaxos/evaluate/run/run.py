@@ -11,10 +11,11 @@ def run_node(node: Node):
 def init_node(node: Node):
     node.kill()
     node.init_repo()
+    node.init_log()
 
 def check_status(node: Node):
     while True:
-        time.sleep(600)
+        time.sleep(360)
         if not node.is_running():
             return
 

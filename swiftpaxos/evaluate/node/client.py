@@ -7,11 +7,6 @@ class Client(Node):
         self.alias = alias
 
     def run(self):
-        log_dir = os.path.join(Node.nfs_client_path, Node.test_name, self.protocol)
-        log_file = os.path.join(log_dir, self.alias)
-        self.run_cmd(f"rm -rf {log_file}*")
-        self.run_cmd(f"mkdir -p {log_dir}")
-        self.run_cmd(f"touch {log_file}")
         return self.run_cmd_async(f"{os.path.join(Node.working_dir, 'swiftpaxos')}", 
                             "-run client", 
                             f"-config {self.config_path}", 
@@ -27,3 +22,9 @@ class Client(Node):
             f"sudo mkdir -p {Node.nfs_client_path}",
             f"sudo mount {master_address}:{Node.nfs_server_path} {Node.nfs_client_path}"
             ])
+    def init_log(self):
+        log_dir = os.path.join(Node.nfs_client_path, Node.test_name, self.protocol)
+        log_file = os.path.join(log_dir, self.alias)
+        self.run_cmd(f"rm -rf {log_file}*")
+        self.run_cmd(f"mkdir -p {log_dir}")
+        self.run_cmd(f"touch {log_file}")
