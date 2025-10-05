@@ -60,5 +60,5 @@ repo_path: ~/PPaxos/
 working_dir: ~/PPaxos/swiftpaxos/
 nfs_server_path: /exports/paxos
 nfs_client_path: /mnt/nfs/paxos
-test_name: conflict-100
+test_name: conflict-90
 protocol: eppaxos
