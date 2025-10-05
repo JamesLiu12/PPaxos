@@ -54,7 +54,7 @@ if __name__ == "__main__":
     for t in threads:
         t.start()
         t.join()
-        time.sleep(5)
+        time.sleep(3)
     # for t in threads:
 
     print("All started")
