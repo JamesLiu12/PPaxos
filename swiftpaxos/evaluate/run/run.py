@@ -14,10 +14,11 @@ def init_node(node: Node):
     node.init_log()
 
 def check_status(node: Node):
+    time.sleep(300)
     while True:
-        time.sleep(360)
         if not node.is_running():
             return
+        time.sleep(120)
 
 if __name__ == "__main__":
     config_loader = ConfigLoader()
