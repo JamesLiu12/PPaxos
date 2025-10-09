@@ -34,9 +34,9 @@ def cal_speedup_avg(speedups: Dict[str, float]) -> float:
 # conflict_proto_speedup: Dict[int, Dict[str, Dict[str, float]]] = {}
 conflict_proto_speedup: Dict[int, Dict[str, float]] = {}
 
-data_files = [f'out/conflict{i * 10}.yaml' for i in range(11)]
+data_files = [f'out/conflict{i * 10}.yaml' for i in range(8, 11)]
 
-conflict = 0
+conflict = 80
 
 for data_file in data_files:
     data = load_from_yaml(data_file)
@@ -49,7 +49,7 @@ for data_file in data_files:
             throughput = cal_throughput(entries)
             if throughput: 
                 throughputs[proto][client] = throughput
-                print(f'[{proto}] [{client}] troughput: {throughputs[proto][client]}')
+                print(f'[conflict-{conflict}] [{proto}] [{client}] troughput: {throughputs[proto][client]}')
 
     conflict_proto_speedup[conflict] = {}
 
@@ -60,7 +60,7 @@ for data_file in data_files:
         for client, throughput in clients.items():
             if client in throughputs['paxos']:
                 client_speedups[client] = throughputs[proto][client] / throughputs['paxos'][client]
-                print(f'[{proto}] [{client}] speedup: {client_speedups[client]}')
+                print(f'[conflict-{conflict}] [{proto}] [{client}] speedup: {client_speedups[client]}')
 
         # conflict_proto_speedup[conflict][proto]['avg'] = cal_speedup_avg(client_speedups)
         # conflict_proto_speedup[conflict][proto]['max'] = cal_speedup_max(client_speedups)
