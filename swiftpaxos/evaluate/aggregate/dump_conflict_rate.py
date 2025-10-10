@@ -1,79 +1,74 @@
-from .log_entry import LogEntry, load_from_yaml
 from typing import List, Dict, Optional
-from datetime import datetime
+import re
 import yaml
+import os
 
-# Unit: message / sec
-def cal_throughput(entries: List[LogEntry]) -> Optional[float]:
-    if not entries:
-        return None
-    
-    entries.sort(key=lambda e: (e.date, e.time))
-    to_dt = lambda e: datetime.strptime(f"{e.date} {e.time}", "%Y/%m/%d %H:%M:%S")
+num_of_commands = 1000
+conflicts = [i for i in range(0, 11)]
 
-    first_time = to_dt(entries[0])
-    last_time  = to_dt(entries[-1])
+def read_duration(client: str) -> float:
+    last_line: Optional[str] = None
+    with open(client, "r", encoding="utf-8") as f:
+        for line in f:
+            stripped = line.strip()
+            if stripped:
+                last_line = stripped
 
-    duration = (last_time - first_time).total_seconds() + entries[-1].rtt * 0.001
+    if last_line is None:
+        raise ValueError(f"No non-empty lines found in {client!r}")
 
-    if abs(duration) < 1e-6:
-        return None
-    
-    return len(entries) / duration
+    if "Test took" not in last_line:
+        raise ValueError(f"'Test took' not found in the last line of {client!r}")
 
-def cal_speedup_avg(speedups: Dict[str, float]) -> float:
-    vals = speedups.values()
-    return sum(vals) / len(speedups)
+    duration_token = last_line.split("Test took", 1)[1].strip().split()[0]
 
-# def cal_speedup_max(speedups: Dict[str, float]) -> float:
-#     return max(speedups.values())
+    pattern = re.compile(r"(\d+(?:\.\d+)?)(h|ms|µs|μs|us|ns|m|s)")
+    unit_to_seconds = {
+        "h": 3600.0,
+        "m": 60.0,
+        "s": 1.0,
+        "ms": 1e-3,
+        "us": 1e-6,
+        "µs": 1e-6,
+        "μs": 1e-6,
+        "ns": 1e-9,
+    }
 
-# def cal_speedup_min(speedups: Dict[str, float]) -> float:
-#     return min(speedups.values())
+    total_seconds = 0.0
+    for value, unit in pattern.findall(duration_token):
+        total_seconds += float(value) * unit_to_seconds[unit]
 
-# conflict_proto_speedup: Dict[int, Dict[str, Dict[str, float]]] = {}
-conflict_proto_speedup: Dict[int, Dict[str, float]] = {}
+    if total_seconds == 0.0:
+        raise ValueError(f"Unable to parse a duration from {duration_token!r}")
 
-data_files = [f'out/conflict{i * 10}.yaml' for i in range(8, 11)]
-
-conflict = 80
-
-for data_file in data_files:
-    data = load_from_yaml(data_file)
-
-    throughputs: Dict[str, Dict[str, float]] = {}
-
-    for proto, clients in data.items():
-        throughputs[proto] = {}
-        for client, entries in clients.items():
-            throughput = cal_throughput(entries)
-            if throughput: 
-                throughputs[proto][client] = throughput
-                print(f'[conflict-{conflict}] [{proto}] [{client}] troughput: {throughputs[proto][client]}')
-
-    conflict_proto_speedup[conflict] = {}
-
-    for proto, clients in throughputs.items():
-        # conflict_proto_speedup[conflict][proto] = {}
-        client_speedups: Dict[str, float] = {}
-        
-        for client, throughput in clients.items():
-            if client in throughputs['paxos']:
-                client_speedups[client] = throughputs[proto][client] / throughputs['paxos'][client]
-                print(f'[conflict-{conflict}] [{proto}] [{client}] speedup: {client_speedups[client]}')
-
-        # conflict_proto_speedup[conflict][proto]['avg'] = cal_speedup_avg(client_speedups)
-        # conflict_proto_speedup[conflict][proto]['max'] = cal_speedup_max(client_speedups)
-        # conflict_proto_speedup[conflict][proto]['min'] = cal_speedup_min(client_speedups)
-        conflict_proto_speedup[conflict][proto] = cal_speedup_avg(client_speedups)
-
-    conflict += 10
+    return total_seconds
 
 proto_conflict_speedup: Dict[str, Dict[int, float]] = {}
 
-for conflict, proto_speedup in conflict_proto_speedup.items():
-    for proto, speedup in proto_speedup.items():
-        proto_conflict_speedup.setdefault(proto, {})[conflict] = speedup
+for conflict in conflicts:
+    dir = f'/exports/paxos/conflict-{conflict}'
+    
+    proto_client_throughput: Dict[str, Dict[str, float]] = {}
+    proto_client_speedup: Dict[str, Dict[str, float]] = {}
 
-with open('out/proto_conflict_speedup.yaml', 'w', encoding='utf-8') as f:
-    yaml.safe_dump(proto_conflict_speedup, f, sort_keys=False)
+    protos = os.listdir(dir)
+
+    for proto in protos:
+        proto_client_throughput[proto] = {}
+        for client in os.listdir(os.path.join(dir, proto)):
+            duration = read_duration(client)
+            proto_client_throughput[proto][client] = num_of_commands / duration
+            print(f'[{conflict}] [{proto}] [{client}] throughput: {proto_client_throughput[proto][client]}')
+
+    for proto in protos:
+        proto_client_speedup[proto] = {}
+        for client in os.listdir(os.path.join(dir, proto)):
+            proto_client_speedup[proto][client] = proto_client_throughput[proto][client] / proto_client_throughput['paxos'][client]
+            print(f'[{conflict}] [{proto}] [{client}] speedup: {proto_client_speedup[proto][client]}')
+
+    for proto in protos:
+        speedups = proto_client_speedup[proto]
+        proto_conflict_speedup.setdefault(proto, {})[conflict] = sum(speedups) / len(speedups)
+
+    with open('out/proto_conflict_speedup.yaml', 'w', encoding='utf-8') as f:
+        yaml.safe_dump(proto_conflict_speedup, f, sort_keys=False)
