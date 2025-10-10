@@ -4,23 +4,25 @@ import yaml
 import os
 
 num_of_commands = 1000
-conflicts = [i for i in range(0, 11)]
+conflicts = [i * 10 for i in range(0, 11)]
 
-def read_duration(client: str) -> float:
-    last_line: Optional[str] = None
+def read_duration(client: str) -> Optional[float]:
+    """Parse the Go-style duration that appears after 'Test took' and return seconds."""
     with open(client, "r", encoding="utf-8") as f:
-        for line in f:
-            stripped = line.strip()
-            if stripped:
-                last_line = stripped
+        lines = [line.strip() for line in f if line.strip()]
 
-    if last_line is None:
+    if not lines:
         raise ValueError(f"No non-empty lines found in {client!r}")
 
-    if "Test took" not in last_line:
-        raise ValueError(f"'Test took' not found in the last line of {client!r}")
+    duration_token: Optional[str] = None
+    for candidate in reversed(lines):
+        if "Test took" in candidate:
+            _, after = candidate.split("Test took", 1)
+            duration_token = after.strip().split()[0]
+            break
 
-    duration_token = last_line.split("Test took", 1)[1].strip().split()[0]
+    if duration_token is None:
+        return None
 
     pattern = re.compile(r"(\d+(?:\.\d+)?)(h|ms|µs|μs|us|ns|m|s)")
     unit_to_seconds = {
@@ -56,18 +58,22 @@ for conflict in conflicts:
     for proto in protos:
         proto_client_throughput[proto] = {}
         for client in os.listdir(os.path.join(dir, proto)):
-            duration = read_duration(client)
+            if not client.startswith('client'): continue
+            duration = read_duration(os.path.join(dir, proto, client))
+            if not duration: continue
             proto_client_throughput[proto][client] = num_of_commands / duration
             print(f'[{conflict}] [{proto}] [{client}] throughput: {proto_client_throughput[proto][client]}')
 
     for proto in protos:
         proto_client_speedup[proto] = {}
-        for client in os.listdir(os.path.join(dir, proto)):
+        for client in proto_client_throughput[proto].keys():
+            if not client.startswith('client'): continue
+            if not client in proto_client_throughput['paxos']: continue
             proto_client_speedup[proto][client] = proto_client_throughput[proto][client] / proto_client_throughput['paxos'][client]
             print(f'[{conflict}] [{proto}] [{client}] speedup: {proto_client_speedup[proto][client]}')
 
     for proto in protos:
-        speedups = proto_client_speedup[proto]
+        speedups = proto_client_speedup[proto].values()
         proto_conflict_speedup.setdefault(proto, {})[conflict] = sum(speedups) / len(speedups)
 
     with open('out/proto_conflict_speedup.yaml', 'w', encoding='utf-8') as f:
