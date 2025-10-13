@@ -48,8 +48,8 @@ class Node(ABC):
         check_cmd = self.ssh_cmd(f"test -d {Node.repo_path}")
         dir_exists = subprocess.run(check_cmd).returncode == 0
         if dir_exists:
-            return self.run_cmd(f"cd {Node.repo_path} && git pull")
-        clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} {Node.repo_path} && cd {Node.working_dir} && git checkout {Node.branch}")
+            return self.run_cmd(f"cd {Node.repo_path} && git fetch && git checkout origin/{Node.branch} && git pull")
+        clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} {Node.repo_path} && cd {Node.working_dir}")
         return subprocess.run(clone_cmd)
     
     def init_go(self):
