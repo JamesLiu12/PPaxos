@@ -48,7 +48,7 @@ class Node(ABC):
         dir_exists = subprocess.run(check_cmd).returncode == 0
         if dir_exists:
             return self.run_cmd(f"cd {Node.repo_path} && git pull")
-        clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} {Node.repo_path} && cd {Node.working_dir} && go build -buildvcs=false")
+        clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} {Node.repo_path} && cd {Node.working_dir}")
         return subprocess.run(clone_cmd)
     
     def init_go(self):
