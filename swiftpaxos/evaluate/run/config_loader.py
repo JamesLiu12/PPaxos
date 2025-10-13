@@ -16,6 +16,7 @@ class ConfigLoader:
         Node.nfs_server_path = config["nfs_server_path"]
         Node.nfs_client_path = config["nfs_client_path"]
         Node.test_name = config["test_name"]
+        Node.branch = config["branch"]
         protocol = config["protocol"]
 
         master_conf = config["master"]

@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 class Node(ABC):
     repo_url = "https://github.com/JamesLiu12/PPaxos"
     repo_path = "~/PPaxos/"
+    branch = "main"
     working_dir = os.path.join(repo_path, "swiftpaxos")
     nfs_server_path = "/exports/paxos"
     nfs_client_path = "/mnt/nfs/paxos"
@@ -48,7 +49,7 @@ class Node(ABC):
         dir_exists = subprocess.run(check_cmd).returncode == 0
         if dir_exists:
             return self.run_cmd(f"cd {Node.repo_path} && git pull")
-        clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} {Node.repo_path} && cd {Node.working_dir}")
+        clone_cmd = self.ssh_cmd(f"git clone {Node.repo_url} {Node.repo_path} && cd {Node.working_dir} && git checkout {Node.branch}")
         return subprocess.run(clone_cmd)
     
     def init_go(self):
