@@ -6,7 +6,7 @@ import datetime
 
 conflicts = [i * 10 for i in range(0, 11)]
 groups = [i for i in range(1, 6)]
-duration = 10
+duration = 120
 
 COMMAND_LINE_PATTERN = re.compile(
     r'^(?P<timestamp>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+(?P<value>-?\d+(?:\.\d+)?)(?:\s*)$'
@@ -121,9 +121,12 @@ for conflict in conflicts:
         for group in groups:
             proto_group_speedup[proto][group] = proto_group_throughput[proto][group] / proto_group_throughput['paxos'][group]
 
+    paxos_throughput = sum(proto_group_throughput['paxos'].values())
     for proto in protos:
-        speedups = proto_group_speedup[proto].values()
-        proto_conflict_speedup.setdefault(proto, {})[conflict] = sum(speedups) / len(speedups)
+        # speedups = proto_group_speedup[proto].values()
+        # proto_conflict_speedup.setdefault(proto, {})[conflict] = sum(speedups) / len(speedups)
+        proto_conflict_speedup.setdefault(proto, {})[conflict] = sum(proto_group_throughput[proto].values()) / paxos_throughput
+        
 
     with open('out/proto_conflict_speedup.yaml', 'w', encoding='utf-8') as f:
         yaml.safe_dump(proto_conflict_speedup, f, sort_keys=False)
