@@ -69,6 +69,8 @@ class Node(ABC):
     
     def change_config(self, conflict_value: int, proto: str):
         return self.run_cmds([
+            f"cd {Node.repo_path} && git reset",
+            f"cd {Node.repo_path} && git restore .",
             f"cd {Node.repo_path} && git fetch origin && (git switch {Node.branch} || git switch -c {Node.branch} --track origin/{Node.branch}) && git pull --ff-only",
             f"cd {Node.repo_path} && git reset",
             f"cd {Node.repo_path} && git restore .",
