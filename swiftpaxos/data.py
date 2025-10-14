@@ -195,7 +195,7 @@ def calculate_and_write_stats(file_handle, latency_list, group_name="", custom_t
             file_handle.write(f"  - 延迟 < {threshold} ms 的比例: {percentage_below_threshold:.2f}%\n")
 
 # --- 主脚本逻辑 ---
-log_directory = "logs"
+log_directory = "/exports/paxos/conflict-20/swiftpaxos"
 output_file_name = "latency_analysis_report_aligned_0to3min.txt"
 latency_thresholds_to_check = [60, 100, 200, 500] 
 
@@ -210,7 +210,7 @@ try:
         raise FileNotFoundError(f"错误: 日志目录 '{log_directory}' 不存在。")
     
     # 正则表达式用于匹配 'client' 后跟数字
-    group_pattern = re.compile(r'^(client\d+)')
+    group_pattern = re.compile(r'^(client-\d+)')
 
     for filename in os.listdir(log_directory):
         match = group_pattern.match(filename)
