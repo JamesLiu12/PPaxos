@@ -195,156 +195,108 @@ def calculate_and_write_stats(file_handle, latency_list, group_name="", custom_t
             file_handle.write(f"  - 延迟 < {threshold} ms 的比例: {percentage_below_threshold:.2f}%\n")
 
 # --- 主脚本逻辑 ---
-log_directory = "/exports/paxos/conflict-0/paxos"
-output_file_name = "latency_analysis_report_aligned_0to3min.txt"
-latency_thresholds_to_check = [60, 100, 200, 500] 
-
-all_latencies_combined = []
-log_groups = defaultdict(list)
-
-# 扫描目录并对文件进行分组
-print(f"正在扫描日志目录: '{log_directory}'...")
-print("对齐规则: 等所有 client 首次出现延迟后再等 30 秒，再统计 0-3 分钟窗口...")
-try:
-    if not os.path.isdir(log_directory):
-        raise FileNotFoundError(f"错误: 日志目录 '{log_directory}' 不存在。")
-    
-    # 正则表达式用于匹配 'client' 后跟数字
-    group_pattern = re.compile(r'^(client-\d+)')
-
-    for filename in os.listdir(log_directory):
-        match = group_pattern.match(filename)
-        if match:
-            group_name = match.group(1)
-            file_path = os.path.join(log_directory, filename)
-            if os.path.isfile(file_path):
-                log_groups[group_name].append(file_path)
-
-    if not log_groups:
-        print("警告: 在目录下未找到任何匹配 'client<数字>...' 模式的日志文件。")
-
-except Exception as e:
-    print(e)
-    log_groups = {}
-
-"""
-两阶段处理：
-1) 先为每个 client 读取日志，提取所有 (ts, latency)，并记录该 client 的首次延迟时间 first_latency_ts。
-2) 计算全局对齐起点 global_start = max(first_latency_ts for all groups) + 30s。
-   然后对每个 client 只统计 [global_start, global_start+3min] 窗口内的延迟。
-"""
-
-# 扫描所有 client 日志文件：
-# - 每个文件提取其“首次延迟时间”（若存在）
-# - 全局对齐起点 = 所有文件的首次延迟中的“最晚一个” + 30 秒
-# - 同时，按组汇总所有 (ts, latency) 以便后续分组统计
-group_to_all_points = {}
-group_to_first_latency_ts = {}
-all_file_first_latency_ts = []
-first_latency_by_file = []  # (file_path, first_latency_ts)
-for group_name, file_list in sorted(log_groups.items()):
-    merged = ""
-    for file_path in sorted(file_list):
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-        except Exception as e:
-            print(f"错误: 读取文件 {file_path} 时失败: {e}")
-            content = ""
-
-        # 用“会话首次延迟”作为该文件的首次延迟
-        first_ts = extract_session_first_latency(content)
-        if first_ts is not None:
-            all_file_first_latency_ts.append(first_ts)
-            first_latency_by_file.append((file_path, first_ts))
-        merged += content + "\n"
-
-    points = extract_latencies_with_times(merged)
-    group_to_all_points[group_name] = points
-    group_to_first_latency_ts[group_name] = points[0][0] if points else None
-
-# 计算全局对齐起点
-valid_file_first_ts = [ts for ts in all_file_first_latency_ts if ts is not None]
-if valid_file_first_ts:
-    latest_first_ts = max(valid_file_first_ts)
-    # 找出来源文件（若有多个相同时间，取其中任意一个）
-    source_file = None
-    for fp, ts in first_latency_by_file:
-        if ts == latest_first_ts:
-            source_file = fp
-            break
-    global_start = latest_first_ts + timedelta(seconds=30)
-else:
-    global_start = None
-
-with open(output_file_name, 'w', encoding='utf-8') as report_file:
-    report_file.write("Python 延迟分析报告 (按客户端分组，对齐后0-3分钟窗口)\n")
-    report_file.write("=========================================\n")
-    report_file.write(f"报告生成于: {os.path.abspath(output_file_name)}\n")
-    report_file.write(f"分析目录: '{log_directory}'\n")
-    report_file.write(f"自定义延迟阈值检查: {latency_thresholds_to_check}\n")
-    report_file.write("\n文件选择策略: 扫描所有 client 日志文件，取所有文件的最晚首次延迟 + 30s 作为对齐起点\n")
-
-    if global_start is None:
-        report_file.write("\n未能确定全局对齐起点（没有任何客户端出现延迟）。\n")
-        report_file.write("--- 脚本执行完毕 ---\n")
-        print(f"脚本执行完成。结果已保存到: {os.path.abspath(output_file_name)}")
-    else:
-        report_file.write(f"全局对齐起点: {global_start.strftime('%Y/%m/%d %H:%M:%S')} (= 所有客户端首次延迟的最晚时间 + 30s)\n")
-        if first_latency_by_file:
-            report_file.write("贡献最晚首次延迟的文件: ")
-            if source_file:
-                report_file.write(f"{os.path.basename(source_file)}\n")
-            else:
-                report_file.write("(未定位到文件)\n")
-            # 展示最晚的前若干个文件首次延迟（按时间倒序展示前5个）
-            top = sorted(first_latency_by_file, key=lambda kv: kv[1], reverse=True)[:5]
-            report_file.write("前5个文件首次延迟(倒序):\n")
-            for fp, ts in top:
-                report_file.write(f"  - {os.path.basename(fp)}: {ts.strftime('%Y/%m/%d %H:%M:%S')}\n")
-        report_file.write(f"统计窗口: 对齐后0-3分钟\n")
-        report_file.write(f"开始统计时间: {global_start.strftime('%Y/%m/%d %H:%M:%S')}\n")
-        if source_file:
-            print(f"开始统计时间: {global_start.strftime('%Y/%m/%d %H:%M:%S')} (来自 {os.path.basename(source_file)} 的首次延迟)")
-        else:
-            print(f"开始统计时间: {global_start.strftime('%Y/%m/%d %H:%M:%S')}")
+conflicts = [i * 10 for i in range(0, 11)]
+protos = ['paxos', 'swiftpaxos']
+for proto in protos:
+    for conflict in conflicts:
+        log_directory = f"/exports/paxos-bk-2/conflict-{conflict}/{proto}"
+        output_file_name = "latency_analysis_report_aligned_0to3min.txt"
+        latency_thresholds_to_check = [60, 100, 200, 500] 
 
         all_latencies_combined = []
-        for group_name in sorted(group_to_all_points.keys()):
-            points = group_to_all_points[group_name]
-            # 过滤窗口 [global_start, global_start+3min]
-            window_end = global_start + timedelta(minutes=3)
-            filtered = [val for (ts, val) in points if ts >= global_start and ts <= window_end]
+        log_groups = defaultdict(list)
 
-            report_file.write(f"\n######################################################\n")
-            report_file.write(f"### 开始处理分组: {group_name}\n")
-            first_ts = group_to_first_latency_ts.get(group_name)
-            if first_ts is not None:
-                report_file.write(f"该组首次延迟时间: {first_ts.strftime('%Y/%m/%d %H:%M:%S')}\n")
-            else:
-                report_file.write("该组未发现任何延迟数据。\n")
+        # 扫描目录并对文件进行分组
+        print(f"正在扫描日志目录: '{log_directory}'...")
+        print("对齐规则: 等所有 client 首次出现延迟后再等 30 秒，再统计 0-3 分钟窗口...")
+        try:
+            if not os.path.isdir(log_directory):
+                raise FileNotFoundError(f"错误: 日志目录 '{log_directory}' 不存在。")
+            
+            # 正则表达式用于匹配 'client' 后跟数字
+            group_pattern = re.compile(r'^(client-\d+)')
 
-            if filtered:
-                report_file.write(f"成功从 \"{group_name}\" 组提取了 {len(filtered)} 个数据点（对齐后0-3分钟）。\n")
-                all_latencies_combined.extend(filtered)
-                calculate_and_write_stats(report_file, filtered, group_name,
-                                          custom_thresholds=latency_thresholds_to_check,
-                                          start_time=global_start)
-            else:
-                calculate_and_write_stats(report_file, [], group_name,
-                                          custom_thresholds=latency_thresholds_to_check,
-                                          start_time=global_start)
+            for filename in os.listdir(log_directory):
+                match = group_pattern.match(filename)
+                if match:
+                    group_name = match.group(1)
+                    file_path = os.path.join(log_directory, filename)
+                    if os.path.isfile(file_path):
+                        log_groups[group_name].append(file_path)
 
-        if all_latencies_combined:
-            report_file.write("\n======================================================\n")
-            report_file.write("       所有客户端合并后的总体统计数据（对齐后0-3分钟）\n")
-            report_file.write("======================================================\n")
-            calculate_and_write_stats(report_file, all_latencies_combined,
-                                      "所有文件合并 (Overall)",
-                                      custom_thresholds=latency_thresholds_to_check,
-                                      start_time=global_start)
+            if not log_groups:
+                print("警告: 在目录下未找到任何匹配 'client<数字>...' 模式的日志文件。")
+
+        except Exception as e:
+            print(e)
+            log_groups = {}
+
+        """
+        两阶段处理：
+        1) 先为每个 client 读取日志，提取所有 (ts, latency)，并记录该 client 的首次延迟时间 first_latency_ts。
+        2) 计算全局对齐起点 global_start = max(first_latency_ts for all groups) + 30s。
+        然后对每个 client 只统计 [global_start, global_start+3min] 窗口内的延迟。
+        """
+
+        # 扫描所有 client 日志文件：
+        # - 每个文件提取其“首次延迟时间”（若存在）
+        # - 全局对齐起点 = 所有文件的首次延迟中的“最晚一个” + 30 秒
+        # - 同时，按组汇总所有 (ts, latency) 以便后续分组统计
+        group_to_all_points = {}
+        group_to_first_latency_ts = {}
+        all_file_first_latency_ts = []
+        first_latency_by_file = []  # (file_path, first_latency_ts)
+        for group_name, file_list in sorted(log_groups.items()):
+            merged = ""
+            for file_path in sorted(file_list):
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                except Exception as e:
+                    print(f"错误: 读取文件 {file_path} 时失败: {e}")
+                    content = ""
+
+                # 用“会话首次延迟”作为该文件的首次延迟
+                first_ts = extract_session_first_latency(content)
+                if first_ts is not None:
+                    all_file_first_latency_ts.append(first_ts)
+                    first_latency_by_file.append((file_path, first_ts))
+                merged += content + "\n"
+
+            points = extract_latencies_with_times(merged)
+            group_to_all_points[group_name] = points
+            group_to_first_latency_ts[group_name] = points[0][0] if points else None
+
+        # 计算全局对齐起点
+        valid_file_first_ts = [ts for ts in all_file_first_latency_ts if ts is not None]
+        if valid_file_first_ts:
+            latest_first_ts = max(valid_file_first_ts)
+            # 找出来源文件（若有多个相同时间，取其中任意一个）
+            source_file = None
+            for fp, ts in first_latency_by_file:
+                if ts == latest_first_ts:
+                    source_file = fp
+                    break
+            global_start = latest_first_ts + timedelta(seconds=30)
         else:
-            report_file.write("\n未能从任何文件中提取到符合对齐窗口的延迟数据。\n")
+            global_start = None
 
-        report_file.write("\n--- 脚本执行完毕 ---\n")
-        print(f"脚本执行完成。结果已保存到: {os.path.abspath(output_file_name)}")
+        with open(output_file_name, 'a', encoding='utf-8') as report_file:
+            report_file.write(f'{proto} {conflict}\n')
+            all_latencies_combined = []
+            for group_name in sorted(group_to_all_points.keys()):
+                points = group_to_all_points[group_name]
+                # 过滤窗口 [global_start, global_start+3min]
+                window_end = global_start + timedelta(minutes=3)
+                filtered = [val for (ts, val) in points if ts >= global_start and ts <= window_end]
+
+                if filtered:
+                    all_latencies_combined.extend(filtered)
+
+            if all_latencies_combined:
+                calculate_and_write_stats(report_file, all_latencies_combined,
+                                            "所有文件合并 (Overall)",
+                                            custom_thresholds=latency_thresholds_to_check,
+                                            start_time=global_start)
+            else:
+                report_file.write("\n未能从任何文件中提取到符合对齐窗口的延迟数据。\n")
